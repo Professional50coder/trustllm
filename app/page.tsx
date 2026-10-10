@@ -41,16 +41,16 @@ export default function Home() {
         <div className="container max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             <div className="space-y-2 text-center">
-              <div className="text-3xl font-bold text-accent">10K+</div>
-              <p className="text-sm text-muted-foreground">Evaluations per day</p>
+              <div className="text-3xl font-bold text-accent">4</div>
+              <p className="text-sm text-muted-foreground">Models compared side by side</p>
             </div>
             <div className="space-y-2 text-center">
-              <div className="text-3xl font-bold text-accent">99.9%</div>
-              <p className="text-sm text-muted-foreground">Uptime SLA</p>
+              <div className="text-3xl font-bold text-accent">6</div>
+              <p className="text-sm text-muted-foreground">Quality and safety signals per response</p>
             </div>
             <div className="space-y-2 text-center">
-              <div className="text-3xl font-bold text-accent">50+</div>
-              <p className="text-sm text-muted-foreground">Enterprise clients</p>
+              <div className="text-3xl font-bold text-accent">4</div>
+              <p className="text-sm text-muted-foreground">Guardrail checks per response</p>
             </div>
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function Home() {
               </div>
               <h3 className="mb-2 font-bold text-card-foreground">Enterprise Ready</h3>
               <p className="text-sm text-muted-foreground">
-                SOC 2 compliant, role-based access control, API-first architecture, and 99.9% SLA.
+                Typed metric and guardrail contracts, ready to back with a real evaluation service. This build is a client-side prototype with simulated scores.
               </p>
             </Card>
           </div>
