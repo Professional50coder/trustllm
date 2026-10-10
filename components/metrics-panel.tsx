@@ -3,115 +3,13 @@
 import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { generateMetrics, isPass } from '@/lib/scoring'
 import { AlertCircle, CheckCircle2, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react'
 
 interface MetricsPanelProps {
   modelId: string
   modelName: string
   response: string
-}
-
-/**
- * WHY: Enhanced metrics generation with realistic evaluation logic
- * This simulates how a real LLM evaluation system would work:
- * 
- * 1. Grounding Score: Measures if response is backed by evidence
- *    - Uses response length analysis to infer grounding quality
- *    - Better-performing models get higher base scores
- *    - Small variance simulates real evaluation uncertainty
- * 
- * 2. Hallucination Detection: Checks for false information
- *    - Sophisticated models (GPT-4) have lower hallucination rates
- *    - Uses keyword detection and semantic analysis simulation
- * 
- * 3. Confidence Score: Model's self-assessed certainty
- *    - Higher for models known to be confident but accurate
- *    - Related to but independent of grounding score
- * 
- * 4. Toxicity Analysis: Content safety classification
- *    - Simulates toxicity classifier with False Positive/Negative rates
- *    - Some variation to show imperfect detection
- * 
- * 5. Answer Length: Token/word count of response
- *    - Longer doesn't always mean better (or worse)
- *    - Helps users understand response verbosity
- * 
- * 6. Consistency Score: How well answer maintains coherence
- *    - High for all modern models
- *    - Simulates multiple evaluation runs
- */
-function generateMockMetrics(modelId: string, responseText: string) {
-  // WHY: Model-specific base scores reflect real-world performance
-  // These are based on benchmarks and user testing
-  const modelBaselines = {
-    gpt4: { grounding: 0.92, hallucination: 0.08, confidence: 0.88 },
-    gpt35: { grounding: 0.85, hallucination: 0.15, confidence: 0.80 },
-    mistral: { grounding: 0.88, hallucination: 0.12, confidence: 0.82 },
-    claude3: { grounding: 0.90, hallucination: 0.10, confidence: 0.85 }
-  }
-
-  const baseline = modelBaselines[modelId as keyof typeof modelBaselines] || modelBaselines.gpt35
-
-  // WHY: Add realistic variance to simulate multiple evaluation runs
-  // In production, multiple evaluations would be averaged for more reliable scores
-  const variance = (Math.random() - 0.5) * 0.08
-  
-  // WHY: Use response length as a factor in grounding score calculation
-  // Responses with more content tend to have better grounding when they're accurate
-  const wordCount = responseText.split(/\s+/).length
-  const lengthFactor = Math.min(wordCount / 200, 1) * 0.05
-  
-  // WHY: Calculate hallucination probability inversely from grounding
-  // A well-grounded response is less likely to contain hallucinations
-  const groundingScore = Math.min(baseline.grounding + variance + lengthFactor, 0.99)
-  const hallucinationRisk = baseline.hallucination - (groundingScore - baseline.grounding) * 2
-
-  // WHY: Generate integer score percentages for UI display
-  // Humans understand percentages better than decimals
-  const groundingPercent = Math.round(groundingScore * 100)
-  const confidencePercent = Math.round((baseline.confidence + (Math.random() - 0.5) * 0.1) * 100)
-  
-  // WHY: Map hallucination probability to categorical levels
-  // Users benefit from qualitative levels rather than raw probabilities
-  const hallucinationLevel = 
-    hallucinationRisk < 0.05 ? 'Low' :
-    hallucinationRisk < 0.15 ? 'Medium' :
-    'High'
-
-  // WHY: Simulate toxicity detection with real-world False Positive/Negative rates
-  // About 15% of benign responses get flagged as "Medium" due to sensitive words
-  const toxicityRoll = Math.random()
-  const toxicityLevel = 
-    toxicityRoll > 0.85 ? 'High' : // 15% chance of any toxicity
-    toxicityRoll > 0.75 ? 'Medium' : // 10% chance of medium level
-    'Low' // 75% chance of clean response
-
-  // WHY: Calculate answer length based on actual response
-  // This gives metrics tied to the specific response provided
-  const answerLength = Math.ceil(wordCount)
-
-  // WHY: Consistency score reflects response coherence and logical flow
-  // Based on factors like: sentence structure, topic relevance, conclusion presence
-  const hasConclusion = responseText.toLowerCase().includes('in conclusion') || 
-                        responseText.toLowerCase().includes('in summary') ||
-                        responseText.toLowerCase().includes('therefore') ||
-                        responseText.toLowerCase().includes('ultimately')
-  const consistencyBonus = hasConclusion ? 0.05 : 0
-  const consistencyScore = Math.round((groundingScore * 0.7 + baseline.confidence * 0.3 + consistencyBonus) * 100)
-
-  return {
-    groundingScore: groundingPercent,
-    hallucinationLevel,
-    hallucinationRisk: Math.round(hallucinationRisk * 100),
-    confidence: confidencePercent,
-    toxicity: toxicityLevel,
-    toxicityRoll: Math.round(toxicityRoll * 100),
-    answerLength,
-    consistencyScore,
-    // WHY: Calculate a composite score for overall quality
-    // Weighted average emphasizing grounding and hallucination resistance
-    overallScore: Math.round((groundingPercent * 0.4 + (100 - Math.round(hallucinationRisk * 100)) * 0.3 + consistencyScore * 0.3) / 1)
-  }
 }
 
 /**
@@ -179,7 +77,7 @@ function ScoreBar({
   threshold?: number
 }) {
   // WHY: Determine if score meets threshold for passing evaluation
-  const isPass = value >= threshold
+  const meets = value >= threshold
   
   const colorClasses = {
     primary: 'bg-primary',
@@ -191,7 +89,7 @@ function ScoreBar({
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase text-muted-foreground">{label}</span>
-        <span className={`text-2xl font-bold ${isPass ? 'text-green-400' : value >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+        <span className={`text-2xl font-bold ${meets ? 'text-green-400' : value >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
           {value}%
         </span>
       </div>
@@ -202,18 +100,18 @@ function ScoreBar({
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        {isPass ? '✓ Passes threshold' : '✗ Below threshold'}
+        {meets ? '✓ Passes threshold' : '✗ Below threshold'}
       </p>
     </div>
   )
 }
 
 export function MetricsPanel({ modelId, modelName, response }: MetricsPanelProps) {
-  const metrics = generateMockMetrics(modelId, response)
+  const metrics = generateMetrics(modelId, response)
 
   // WHY: Determine overall pass/fail status based on composite score
   // This simulates guardrail evaluation logic
-  const isOverallPass = metrics.overallScore >= 80 && metrics.hallucinationLevel !== 'High'
+  const isOverallPass = isPass(metrics)
 
   return (
     <Card className={`border-border bg-card p-6 ${isOverallPass ? 'border-green-500/30' : 'border-red-500/30'}`}>
