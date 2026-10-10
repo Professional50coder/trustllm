@@ -115,8 +115,8 @@ const mockLogs: AuditLogEntry[] = [
 
 export default function AuditLogsPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterModel, setFilterModel] = useState<string | null>('all')
-  const [filterStatus, setFilterStatus] = useState<string | null>('all')
+  const [filterModel, setFilterModel] = useState<string>('all')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
 
   const filteredLogs = mockLogs.filter((log) => {
     const matchesSearch = log.prompt.toLowerCase().includes(searchTerm.toLowerCase())
