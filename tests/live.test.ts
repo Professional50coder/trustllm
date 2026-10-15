@@ -62,6 +62,11 @@ describe('provider adapters (fake fetch)', () => {
     const err = await createProvider({ kind: 'openai', model: 'm', apiKey: KEY }, { fetch: f }).complete({ user: 'q', temperature: 0, maxTokens: 5 }).catch((e) => e)
     expect(err.message).not.toContain(KEY)
   })
+  it('redact also removes the masked copy of a key that providers echo back', () => {
+    const msg = redact('Incorrect API key provided: sk-bogus*************cdef. You can find it at the dashboard.', 'sk-bogus-0123456789abcdef')
+    expect(msg).not.toContain('sk-bogus')
+    expect(msg).toContain('You can find it')
+  })
   it('redact masks keys and key-shaped strings', () => {
     expect(redact(`a ${KEY} b`, KEY)).not.toContain('SECRETSECRET')
     expect(redact('sk-abcdefghijklmnopqrstuvwxyz')).toBe('sk-abcdefgh***')

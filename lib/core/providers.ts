@@ -42,6 +42,8 @@ export const OPENAI_COMPATIBLE_PRESETS: Record<string, { label: string; baseUrl:
 export function redact(text: string, key?: string): string {
   let out = text
   if (key && key.length > 6) out = out.split(key).join('***')
+  // Providers echo a masked copy of a bad key ("sk-abcd1234*****wxyz"); drop that too.
+  out = out.replace(/[A-Za-z0-9_-]*[A-Za-z0-9]\*{3,}[A-Za-z0-9]*/g, '***')
   return out.replace(/\b(sk-[A-Za-z0-9_-]{8})[A-Za-z0-9_-]*/g, '$1***')
 }
 

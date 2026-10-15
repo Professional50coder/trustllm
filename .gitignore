@@ -17,3 +17,5 @@ next-env.d.ts
 # Local planning state (PAUL), never committed
 .paul/
 .vercel
+
+.vercel

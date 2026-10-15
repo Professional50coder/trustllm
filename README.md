@@ -4,6 +4,8 @@
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6) ![License](https://img.shields.io/badge/license-MIT-green)
 
+**Live: https://trustllm.vercel.app** (demo mode works with no key; live mode takes your own key).
+
 ## Why this exists
 
 Teams change a prompt or swap a model, eyeball a few answers and ship. Evaluation frameworks exist (promptfoo, DeepEval, Ragas and others) but they are broad toolkits aimed at engineers. TrustLLM owns one narrow job: **the release decision and the evidence around it**.
@@ -156,7 +158,7 @@ Offline (demo-mode) scorer versus labels, details and caveats in [docs/evaluatio
 
 ## Deploy
 
-Vercel: import the repository, no environment variables are required. Optional: `NEXT_PUBLIC_SITE_URL` (canonical URL for social previews) and `TRUSTLLM_ALLOW_SERVER_KEYS=1` plus `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` if you want a private deployment that uses server-side keys. Do not enable server keys on a public deployment: visitors would spend your quota. A `Dockerfile` and `docker-compose.yml` are included (Next.js standalone output).
+The public instance runs on Vercel at https://trustllm.vercel.app, deployed with `vercel deploy --prod` and no provider keys. To deploy your own, import the repository; no environment variables are required. Optional: `NEXT_PUBLIC_SITE_URL` (canonical URL for social previews) and `TRUSTLLM_ALLOW_SERVER_KEYS=1` plus `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` if you want a private deployment that uses server-side keys. Do not enable server keys on a public deployment: visitors would spend your quota. A `Dockerfile` and `docker-compose.yml` are included (Next.js standalone output).
 
 ## Credits and licences
 

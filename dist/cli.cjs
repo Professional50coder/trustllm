@@ -11677,6 +11677,7 @@ var OPENAI_COMPATIBLE_PRESETS = {
 function redact(text, key) {
   let out = text;
   if (key && key.length > 6) out = out.split(key).join("***");
+  out = out.replace(/[A-Za-z0-9_-]*[A-Za-z0-9]\*{3,}[A-Za-z0-9]*/g, "***");
   return out.replace(/\b(sk-[A-Za-z0-9_-]{8})[A-Za-z0-9_-]*/g, "$1***");
 }
 async function post(url, headers, body, key, opts) {
