@@ -13,13 +13,14 @@ export function ExportButtons({ report }: { report: Report }) {
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null)
   const copyLink = async () => {
     const url = await shareUrl(report, window.location.origin)
+    setFallbackUrl(url) // always show the link, so it can be copied by hand if the clipboard is blocked
+    setCopied('Preparing link...')
     try {
-      await navigator.clipboard.writeText(url)
-      setFallbackUrl(null)
+      // The clipboard promise can hang when the page is not focused, so do not wait on it forever.
+      await Promise.race([navigator.clipboard.writeText(url), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500))])
       setCopied('Link copied. The report is inside the link; nothing was uploaded.')
     } catch {
-      setFallbackUrl(url)
-      setCopied('Copy this link (select and copy). The report is inside the link; nothing was uploaded.')
+      setCopied('Copy the link below. The report is inside the link; nothing was uploaded.')
     }
   }
   const stamp = report.generatedAt.slice(0, 19).replace(/[:T]/g, '-')
