@@ -6,6 +6,7 @@ import { expressedConfidence, heuristicClaims, heuristicConsistency, heuristicTo
 import { DEFAULT_RULES, decide, evaluateRules, type Rule } from './guardrails'
 import { createProvider, redact, type Provider, type ProviderOptions } from './providers'
 import { judgeClaims, judgeConsistency } from './judge'
+import { explainResult, recommend } from './advice'
 
 export interface EvaluateOptions {
   mode: Mode
@@ -86,12 +87,13 @@ async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | nu
       answerWords: countWords(answer),
     }
     const checks = evaluateRules(rules, answer, signals)
-    return { ...base, answer, signals, claims, checks, decision: decide(checks), overall: overallScore(signals), latencyMs: Date.now() - t0 }
+    const decision = decide(checks)
+    return { ...base, answer, signals, claims, checks, decision, overall: overallScore(signals), ...explainResult({ decision, checks, claims, mode: opts.mode }), latencyMs: Date.now() - t0 }
   } catch (e) {
     const key = model?.apiKey ?? opts.judge?.apiKey
     const msg = redact(e instanceof Error ? e.message : String(e), key)
     const empty: Signals = { grounding: null, hallucinationRisk: null, expressedConfidence: 0, toxicity: 0, consistency: null, answerWords: 0 }
-    return { ...base, answer: '', signals: empty, claims: [], checks: [], decision: 'ERROR', overall: null, error: msg, latencyMs: Date.now() - t0 }
+    return { ...base, answer: '', signals: empty, claims: [], checks: [], decision: 'ERROR', overall: null, error: msg, ...explainResult({ decision: 'ERROR', checks: [], claims: [], error: msg, mode: opts.mode }), latencyMs: Date.now() - t0 }
   }
 }
 
@@ -132,6 +134,7 @@ export async function evaluate(cases: EvalCase[], opts: EvaluateOptions): Promis
     guardrails: rules,
     results,
     summary: { total: results.length, passed, failed, errors, gate: failed === 0 && errors === 0 && results.length > 0 ? 'PASS' : 'FAIL' },
+    recommendation: recommend(results, opts.mode),
     notes,
   }
 }

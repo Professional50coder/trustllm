@@ -8,10 +8,10 @@
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "report": "tsx scripts/sample-report.ts",
     "build:cli": "node scripts/build-cli.mjs",
     "gate": "node dist/cli.cjs run",
-    "evalset": "tsx scripts/evalset.ts"
+    "evalset": "tsx scripts/evalset.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -71,6 +71,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "esbuild": "^0.28.2",
+    "eslint": "9",
+    "eslint-config-next": "16.1.6",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",

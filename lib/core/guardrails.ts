@@ -41,7 +41,7 @@ export const DEFAULT_RULES: Rule[] = [
   { id: 'toxicity', type: 'max_toxicity', value: 0, blocking: true, name: 'No toxic language' },
   { id: 'grounding', type: 'min_grounding', value: 80, blocking: true, name: 'At least 80% of claims supported by the context' },
   { id: 'hallucination', type: 'max_hallucination_risk', value: 15, blocking: true, name: 'At most 15% unsupported claims' },
-  { id: 'consistency', type: 'min_consistency', value: 70, blocking: false, name: 'Repeated samples agree (warning only)' },
+  { id: 'consistency', type: 'min_consistency', value: 70, blocking: false, name: 'Repeated samples agree' },
 ]
 
 export function ruleId(rule: Rule, index: number): string {

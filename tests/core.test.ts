@@ -174,3 +174,32 @@ describe('reports', () => {
     expect(json).not.toMatch(/apiKey/)
   })
 })
+
+import { explainResult, recommend } from '@/lib/core/advice'
+
+describe('advice', () => {
+  const prompt = 'How long do customers have to request a refund?'
+  it('explains failures from the failed rules and suggests fixes', async () => {
+    const report = await evaluate([{ prompt, context: CTX }], { mode: 'demo', models: ['demo-sloppy', 'demo-rude', 'demo-careful'].map((model) => ({ kind: 'demo' as const, model })), samples: 3 })
+    const by = Object.fromEntries(report.results.map((r) => [r.model, r]))
+    expect(by['demo-rude'].explanation).toMatch(/^Failed because/)
+    expect(by['demo-rude'].fixes.join(' ')).toMatch(/tone/)
+    expect(by['demo-sloppy'].fixes.join(' ')).toMatch(/source/)
+    expect(by['demo-careful'].explanation).toMatch(/^Passed/)
+    expect(by['demo-careful'].explanation).toMatch(/demo run/)
+    expect(report.recommendation.verdict).toBe('fix')
+    expect(report.recommendation.headline).toMatch(/demo-careful/)
+  })
+  it('flags skipped rules so a pass is not over-read', async () => {
+    const r = await evaluate([{ prompt: 'Q?', answer: 'A fine answer here.' }], { mode: 'demo', models: [] })
+    expect(r.results[0].explanation).toMatch(/skipped/)
+  })
+  it('recommends by outcome', () => {
+    expect(recommend([], 'live').verdict).toBe('block')
+    const err = { decision: 'ERROR', checks: [], claims: [], error: 'x', mode: 'live' } as never
+    expect(explainResult(err).fixes[0]).toMatch(/API key/)
+    expect(recommend([{ decision: 'ERROR', checks: [] } as never], 'live').verdict).toBe('fix')
+    expect(recommend([{ decision: 'PASS', checks: [], model: 'm' } as never], 'live').verdict).toBe('ship')
+    expect(recommend([{ decision: 'FAIL', checks: [], model: 'm' } as never], 'live').verdict).toBe('block')
+  })
+})

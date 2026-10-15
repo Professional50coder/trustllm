@@ -18,6 +18,7 @@ export function toMarkdown(report: Report): string {
   L.push('# TrustLLM release-gate report', '')
   L.push(`Gate: **${report.summary.gate}**  (${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.errors} errors, ${report.summary.total} total)`, '')
   L.push(`Mode: **${report.mode === 'demo' ? 'DEMO (offline heuristics, no model called)' : 'LIVE (LLM judge)'}**  |  Judge: ${report.judge}  |  Samples per answer: ${report.samples}  |  Generated: ${report.generatedAt}`, '')
+  L.push(`Recommendation: **${report.recommendation.headline}**. ${report.recommendation.detail}`, '')
   for (const n of report.notes) L.push(`> ${n}`)
   L.push('', '| Case | Model | Decision | Overall | Scores |', '|---|---|---|---|---|')
   for (const r of report.results) L.push(`| ${cell(r.caseId)} | ${cell(r.model)} | ${r.decision} | ${r.overall ?? 'n/a'} | ${r.decision === 'ERROR' ? cell(r.error ?? '') : cell(signalLine(r))} |`)
@@ -27,6 +28,8 @@ export function toMarkdown(report: Report): string {
       L.push(`Error: ${r.error}`)
       continue
     }
+    L.push(r.explanation, '')
+    if (r.fixes.length) L.push('Suggested fixes:', '', ...r.fixes.map((f) => `- ${f}`), '')
     L.push('Rules:', '')
     for (const c of r.checks) L.push(`- ${c.status.toUpperCase()}${c.blocking ? '' : ' (warning only)'}: ${c.name}. ${c.reason}`)
     const flagged = r.claims.filter((c) => c.verdict !== 'supported')

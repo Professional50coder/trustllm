@@ -72,6 +72,10 @@ export interface CaseResult {
   decision: 'PASS' | 'FAIL' | 'ERROR'
   /** Convenience summary 0-100; the decision comes from the rules, not from this number. */
   overall: number | null
+  /** Why it passed or failed, in plain language. */
+  explanation: string
+  /** Concrete suggested fixes derived from the failed rules. */
+  fixes: string[]
   error?: string
   latencyMs: number
 }
@@ -85,5 +89,7 @@ export interface Report {
   guardrails: unknown[]
   results: CaseResult[]
   summary: { total: number; passed: number; failed: number; errors: number; gate: 'PASS' | 'FAIL' }
+  /** Overall recommendation for the run. */
+  recommendation: { verdict: 'ship' | 'fix' | 'block'; headline: string; detail: string }
   notes: string[]
 }

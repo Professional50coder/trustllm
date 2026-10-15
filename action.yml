@@ -1,0 +1,24 @@
+name: TrustLLM release gate
+description: Run TrustLLM guardrail checks on LLM answers and fail the job when the gate fails.
+inputs:
+  config:
+    description: Path to trustllm.yaml, relative to the workspace.
+    required: true
+  json:
+    description: Optional path to write the JSON report to.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TRUSTLLM_CONFIG: ${{ inputs.config }}
+        TRUSTLLM_JSON: ${{ inputs.json }}
+      run: |
+        args=(run "$TRUSTLLM_CONFIG")
+        if [ -n "$TRUSTLLM_JSON" ]; then args+=(--json "$TRUSTLLM_JSON"); fi
+        node "$GITHUB_ACTION_PATH/dist/cli.cjs" "${args[@]}"
+branding:
+  icon: shield
+  color: blue

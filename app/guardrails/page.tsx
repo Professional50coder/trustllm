@@ -1,254 +1,170 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Settings, ArrowLeft, Plus, Trash2, Save } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Trash2, RotateCcw, Download, Upload } from 'lucide-react'
+import { DEFAULT_RULES, JUDGE_TYPES, RulesSchema, parseRules, ruleName, rulesToYaml, type Rule } from '@/lib/core/guardrails'
+import { loadRules, resetRules, saveRules, download } from '@/lib/client/storage'
 
-interface GuardrailRule {
-  id: string
-  name: string
-  description: string
-  type: 'citation' | 'safety' | 'score' | 'toxicity' | 'custom'
-  enabled: boolean
-  config?: Record<string, any>
-}
+type NewKind = { type: Rule['type']; label: string; help: string; value?: 'number' | 'text' | 'none'; def?: string }
+
+const KINDS: NewKind[] = [
+  { type: 'min_grounding', label: 'Grounding at least (%)', help: 'Share of claims the source text supports.', value: 'number', def: '80' },
+  { type: 'max_hallucination_risk', label: 'Unsupported claims at most (%)', help: 'Share of claims the source does not support.', value: 'number', def: '15' },
+  { type: 'max_toxicity', label: 'Toxicity at most (0 none, 1 mild, 2 clear, 3 severe)', help: 'Insults, hate, threats.', value: 'number', def: '0' },
+  { type: 'min_consistency', label: 'Consistency at least (%)', help: 'Repeated answers keep the same facts.', value: 'number', def: '70' },
+  { type: 'no_pii', label: 'No personal data', help: 'Emails, phone numbers, SSNs, card numbers.', value: 'none' },
+  { type: 'no_secrets', label: 'No API keys or private keys', help: 'Common key and token formats.', value: 'none' },
+  { type: 'has_citations', label: 'Must cite a source', help: 'A [1] marker, link or "source:" line.', value: 'none' },
+  { type: 'valid_json', label: 'Answer must be valid JSON', help: 'For structured outputs.', value: 'none' },
+  { type: 'max_words', label: 'At most N words', help: 'Length cap.', value: 'number', def: '150' },
+  { type: 'min_words', label: 'At least N words', help: 'Completeness floor.', value: 'number', def: '10' },
+  { type: 'contains', label: 'Must contain text', help: 'For example a required disclaimer.', value: 'text' },
+  { type: 'not_contains', label: 'Must not contain text', help: 'For example a banned phrase.', value: 'text' },
+]
 
 export default function GuardrailsPage() {
-  const [rules, setRules] = useState<GuardrailRule[]>([
-    {
-      id: '1',
-      name: 'Require Citations',
-      description: 'All responses must include at least one citation or reference',
-      type: 'citation',
-      enabled: true,
-      config: { minCitations: 1 }
-    },
-    {
-      id: '2',
-      name: 'Block Unsafe Content',
-      description: 'Automatically reject responses containing unsafe or sensitive information',
-      type: 'safety',
-      enabled: true,
-      config: { threshold: 'high' }
-    },
-    {
-      id: '3',
-      name: 'Minimum Grounding Score',
-      description: 'Responses must maintain grounding score above specified threshold',
-      type: 'score',
-      enabled: true,
-      config: { threshold: 80 }
-    },
-    {
-      id: '4',
-      name: 'Toxicity Threshold',
-      description: 'Block responses with toxicity risk higher than medium',
-      type: 'toxicity',
-      enabled: false,
-      config: { maxLevel: 'medium' }
-    },
-    {
-      id: '5',
-      name: 'Answer Consistency',
-      description: 'Ensure answer consistency score is above 85%',
-      type: 'custom',
-      enabled: false,
-      config: { minConsistency: 85 }
+  const [rules, setRules] = useState<Rule[]>(DEFAULT_RULES)
+  const [ready, setReady] = useState(false)
+  const [kind, setKind] = useState<NewKind>(KINDS[0])
+  const [val, setVal] = useState(KINDS[0].def ?? '')
+  const [yaml, setYaml] = useState('')
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    setRules(loadRules())
+    setReady(true)
+  }, [])
+
+  const commit = (next: Rule[]) => {
+    setRules(next)
+    saveRules(next)
+    setMsg(null)
+  }
+
+  const add = () => {
+    const raw: Record<string, unknown> = { type: kind.type, blocking: true }
+    if (kind.value === 'number') raw.value = Number(val)
+    if (kind.value === 'text') raw.value = val
+    const parsed = RulesSchema.element.safeParse(raw)
+    if (!parsed.success) return setMsg({ ok: false, text: parsed.error.issues.map((i) => i.message).join('; ') || 'That value is not valid for this rule.' })
+    commit([...rules, parsed.data])
+    setMsg({ ok: true, text: `Added: ${ruleName(parsed.data)}.` })
+  }
+
+  const importYaml = () => {
+    try {
+      const next = parseRules(yaml)
+      if (next.length === 0) throw new Error('No rules found. Expected a "guardrails:" list.')
+      commit(next)
+      setMsg({ ok: true, text: `Imported ${next.length} rules.` })
+    } catch (e) {
+      setMsg({ ok: false, text: `Could not import: ${e instanceof Error ? e.message.slice(0, 300) : 'invalid file'}` })
     }
-  ])
-
-  const [editingRule, setEditingRule] = useState<GuardrailRule | null>(null)
-
-  const toggleRule = (id: string) => {
-    setRules((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, enabled: !r.enabled } : r
-      )
-    )
-  }
-
-  const deleteRule = (id: string) => {
-    setRules((prev) => prev.filter((r) => r.id !== id))
-  }
-
-  const updateRule = (rule: GuardrailRule) => {
-    setRules((prev) =>
-      prev.map((r) => (r.id === rule.id ? rule : r))
-    )
-    setEditingRule(null)
-  }
-
-  const ruleTypeColors: Record<string, { bg: string; text: string }> = {
-    citation: { bg: 'bg-blue-500/10', text: 'text-blue-400' },
-    safety: { bg: 'bg-red-500/10', text: 'text-red-400' },
-    score: { bg: 'bg-green-500/10', text: 'text-green-400' },
-    toxicity: { bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
-    custom: { bg: 'bg-purple-500/10', text: 'text-purple-400' }
   }
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-
-      <div className="container max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <h1 className="text-3xl font-bold text-foreground">Guardrails Configuration</h1>
-          </div>
-          <p className="text-muted-foreground">
-            Define rules to automatically validate and filter LLM responses before deployment
+      <main id="main" className="container mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Guardrails</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            These written rules decide PASS or FAIL. A broken <strong>blocking</strong> rule fails the gate; a non-blocking rule only warns. Rules are saved in this browser and used by{' '}
+            <Link href="/dashboard" className="underline">Evaluate</Link>. Export them as YAML to enforce the same rules in CI.
           </p>
         </div>
 
-        {/* Info Card */}
-        <Card className="border-border bg-card/50 p-6 mb-8">
-          <h3 className="font-semibold text-card-foreground mb-2">How Guardrails Work</h3>
-          <p className="text-sm text-muted-foreground">
-            Guardrails are automatically applied to evaluation results. Each response is validated against all enabled rules. 
-            Responses that fail any rule are marked as FAIL and require manual review before deployment.
-          </p>
+        <Card className="divide-y divide-border border-border bg-card" aria-label="Active rules">
+          {!ready ? (
+            <div className="p-6 text-sm text-muted-foreground">Loading rules...</div>
+          ) : rules.length === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">No rules: every answer would pass. Add a rule below or reset to the defaults.</div>
+          ) : (
+            rules.map((r, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">{ruleName(r)}</div>
+                  <div className="text-xs text-muted-foreground">{JUDGE_TYPES.includes(r.type) ? 'Scored from the answer: LLM judge in live mode, word rules in demo' : 'Exact check on the text, same result every time'}</div>
+                </div>
+                {'value' in r && typeof r.value === 'number' && (
+                  <Input
+                    aria-label={`Value for ${ruleName(r)}`}
+                    type="number"
+                    className="w-24"
+                    value={r.value}
+                    onChange={(e) => {
+                      const next = rules.map((x, j) => (j === i ? { ...x, value: Number(e.target.value), name: undefined } : x))
+                      const ok = RulesSchema.safeParse(next)
+                      if (ok.success) commit(ok.data)
+                    }}
+                  />
+                )}
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={r.blocking} onChange={(e) => commit(rules.map((x, j) => (j === i ? { ...x, blocking: e.target.checked } : x)))} />
+                  Blocking
+                </label>
+                <Button size="icon" variant="ghost" aria-label={`Delete rule ${ruleName(r)}`} onClick={() => commit(rules.filter((_, j) => j !== i))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))
+          )}
         </Card>
 
-        {/* Rules List */}
-        <div className="space-y-4 mb-8">
-          {rules.map((rule) => (
-            <Card key={rule.id} className="border-border bg-card p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-bold text-card-foreground text-lg">{rule.name}</h3>
-                    <Badge 
-                      className={`${ruleTypeColors[rule.type].bg} ${ruleTypeColors[rule.type].text} border-0`}
-                    >
-                      {rule.type.charAt(0).toUpperCase() + rule.type.slice(1)}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">{rule.description}</p>
-
-                  {/* Rule Config Display */}
-                  {rule.config && (
-                    <div className="rounded-lg bg-secondary/50 p-3 mb-4">
-                      {rule.type === 'score' && (
-                        <p className="text-xs text-muted-foreground">
-                          Minimum threshold: <span className="font-semibold text-foreground">{rule.config.threshold}%</span>
-                        </p>
-                      )}
-                      {rule.type === 'toxicity' && (
-                        <p className="text-xs text-muted-foreground">
-                          Maximum level: <span className="font-semibold text-foreground capitalize">{rule.config.maxLevel}</span>
-                        </p>
-                      )}
-                      {rule.type === 'citation' && (
-                        <p className="text-xs text-muted-foreground">
-                          Minimum citations: <span className="font-semibold text-foreground">{rule.config.minCitations}</span>
-                        </p>
-                      )}
-                      {rule.type === 'custom' && (
-                        <p className="text-xs text-muted-foreground">
-                          Minimum consistency: <span className="font-semibold text-foreground">{rule.config.minConsistency}%</span>
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className={`h-6 w-11 rounded-full transition-colors flex-shrink-0 ${rule.enabled ? 'bg-primary' : 'bg-muted'}`}>
-                    <button
-                      onClick={() => toggleRule(rule.id)}
-                      className={`h-5 w-5 rounded-full bg-white transition-transform ${
-                        rule.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteRule(rule.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+        <Card className="space-y-3 border-border bg-card p-5">
+          <h2 className="font-semibold text-foreground">Add a rule</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-64 flex-1 space-y-1.5">
+              <Label htmlFor="kind">Rule</Label>
+              <select
+                id="kind"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                value={kind.type}
+                onChange={(e) => {
+                  const k = KINDS.find((x) => x.type === e.target.value) ?? KINDS[0]
+                  setKind(k)
+                  setVal(k.def ?? '')
+                }}
+              >
+                {KINDS.map((k) => <option key={k.type} value={k.type}>{k.label}</option>)}
+              </select>
+            </div>
+            {kind.value !== 'none' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="val">{kind.value === 'number' ? 'Value' : 'Text'}</Label>
+                <Input id="val" type={kind.value === 'number' ? 'number' : 'text'} value={val} onChange={(e) => setVal(e.target.value)} className="w-40" />
               </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Add New Rule */}
-        <Card className="border-border bg-card/50 p-6 mb-8">
-          <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add New Guardrail Rule
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-card-foreground mb-2">
-                Rule Name
-              </label>
-              <Input
-                placeholder="e.g., Require Model Confidence Above 90%"
-                className="bg-secondary border-border text-foreground"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-card-foreground mb-2">
-                Description
-              </label>
-              <Textarea
-                placeholder="Describe what this rule validates..."
-                className="bg-secondary border-border text-foreground min-h-24 resize-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-card-foreground mb-2">
-                Rule Type
-              </label>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {['citation', 'safety', 'score', 'toxicity', 'custom'].map((type) => (
-                  <button
-                    key={type}
-                    className="rounded-lg border border-border bg-secondary p-3 text-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Button className="w-full gap-2">
-              <Plus className="h-4 w-4" />
-              Create Rule
-            </Button>
+            )}
+            <Button onClick={add}>Add rule</Button>
           </div>
+          <p className="text-xs text-muted-foreground">{kind.help}</p>
         </Card>
 
-        {/* Action Buttons */}
-        <div className="flex gap-4">
-          <Button size="lg" className="gap-2">
-            <Save className="h-4 w-4" />
-            Save All Changes
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => { commit(resetRules()); setMsg({ ok: true, text: 'Reset to the default rules.' }) }}>
+            <RotateCcw className="h-4 w-4" /> Reset to defaults
           </Button>
-          <Button size="lg" variant="outline">
-            Discard Changes
+          <Button variant="outline" className="gap-2" onClick={() => download('guardrails.yaml', rulesToYaml(rules), 'text/yaml')}>
+            <Download className="h-4 w-4" /> Export YAML for CI
           </Button>
         </div>
-      </div>
+
+        <Card className="space-y-3 border-border bg-card p-5">
+          <h2 className="font-semibold text-foreground">Import rules</h2>
+          <Label htmlFor="yaml" className="sr-only">Paste YAML or JSON rules</Label>
+          <Textarea id="yaml" rows={6} value={yaml} onChange={(e) => setYaml(e.target.value)} placeholder={'guardrails:\n  - { type: no_pii }\n  - { type: min_grounding, value: 85 }'} className="font-mono text-xs" />
+          <Button variant="outline" className="gap-2" onClick={importYaml} disabled={!yaml.trim()}><Upload className="h-4 w-4" /> Import</Button>
+        </Card>
+
+        {msg && <div role={msg.ok ? 'status' : 'alert'} className={`rounded-md border p-3 text-sm text-foreground ${msg.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>{msg.text}</div>}
+      </main>
     </div>
   )
 }

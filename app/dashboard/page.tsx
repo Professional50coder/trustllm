@@ -1,478 +1,273 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Navigation } from '@/components/navigation'
-import { EvaluationForm } from '@/components/evaluation-form'
-import { MetricsPanel } from '@/components/metrics-panel'
+import { ResultCard, ModeBadge } from '@/components/result-card'
+import { ExportButtons } from '@/components/export-buttons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { BarChart3, Settings, History, ArrowLeft, Save } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Play, ShieldCheck, ShieldAlert, FileDown, Lock, Info } from 'lucide-react'
+import { SCENARIOS } from '@/lib/scenarios'
+import { DEMO_MODELS } from '@/lib/core/demo'
+import { OPENAI_COMPATIBLE_PRESETS } from '@/lib/core/providers'
+import { DEFAULT_RULES, ruleName, type Rule } from '@/lib/core/guardrails'
+import type { Report } from '@/lib/core/types'
+import { addRun, DEFAULT_PREFS, download, loadPrefs, loadRules, savePrefs, type Prefs } from '@/lib/client/storage'
+import { buildConfigYaml } from '@/lib/client/config-export'
 
-import { generateMockResponse } from '@/lib/mock-responses'
+const PROVIDERS = [
+  { id: 'openai', label: 'OpenAI', kind: 'openai' as const, example: 'gpt-4o-mini' },
+  { id: 'anthropic', label: 'Anthropic', kind: 'anthropic' as const, example: 'claude-haiku-4-5' },
+  ...Object.entries(OPENAI_COMPATIBLE_PRESETS)
+    .filter(([id]) => id !== 'openai')
+    .map(([id, p]) => ({ id, label: p.label, kind: 'openai' as const, example: 'model-name' })),
+]
 
-/**
- * WHY: Type definitions for evaluation results
- * Provides type safety and clear data contract for evaluation results
- * Helps catch errors at compile time rather than runtime
- */
-interface EvaluationResult {
-  modelId: string
-  modelName: string
-  response: string
-  timestamp: Date
-  status: 'pending' | 'complete' | 'error'
-}
+const selectCls = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground'
 
-export default function DashboardPage() {
-  // WHY: Separate state for prompt, models, and results
-  // This allows users to modify form while keeping previous results visible
-  const [prompt, setPrompt] = useState('')
-  const [selectedModels, setSelectedModels] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [evaluationResults, setEvaluationResults] = useState(false) // Added state
-  
-  // WHY: Track evaluation history for audit and comparison purposes
-  // In production, this would be persisted to a database
-  const [evaluationHistory, setEvaluationHistory] = useState<EvaluationResult[]>([])
-  
-  // WHY: Guard rail configuration state
-  // Allows dynamic updates to guardrails without page reload
-  const [guardrailsEnabled, setGuardrailsEnabled] = useState({
-    requireCitations: true,
-    blockUnsafe: true,
-    minGroundingScore: 80,
-    maxHallucination: 'medium' as const
-  })
+export default function EvaluatePage() {
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
+  const [rules, setRules] = useState<Rule[]>(DEFAULT_RULES)
+  const [scenarioId, setScenarioId] = useState(SCENARIOS[0].id)
+  const [prompt, setPrompt] = useState(SCENARIOS[0].prompt)
+  const [context, setContext] = useState(SCENARIOS[0].context)
+  const [answerSource, setAnswerSource] = useState<'generate' | 'paste'>('generate')
+  const [pasted, setPasted] = useState('')
+  const [demoModels, setDemoModels] = useState<string[]>(DEMO_MODELS.map((m) => m.id))
+  // The key lives only in this component's state: not in localStorage, not in history, not in exports.
+  const [apiKey, setApiKey] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [report, setReport] = useState<Report | null>(null)
+  const resultsRef = useRef<HTMLElement | null>(null)
 
-  // WHY: Model name mapping centralized for easy maintenance
-  const modelNames: Record<string, string> = {
-    gpt4: 'GPT-4',
-    gpt35: 'GPT-3.5 Turbo',
-    mistral: 'Mistral 7B',
-    claude3: 'Claude 3 Opus'
+  useEffect(() => {
+    if (report) resultsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [report])
+
+  useEffect(() => {
+    setPrefs(loadPrefs())
+    setRules(loadRules())
+  }, [])
+
+  const update = (patch: Partial<Prefs>) => {
+    const next = { ...prefs, ...patch }
+    setPrefs(next)
+    savePrefs(next)
   }
 
-  /**
-   * WHY: Memoized callback for evaluation submission
-   * Prevents unnecessary re-renders and recreations of the callback
-   * Handles the entire evaluation workflow with proper error handling
-   */
-  const handleEvaluation = useCallback(async (newPrompt: string, models: string[]) => {
-    console.log('[v0] Starting evaluation:', { prompt: newPrompt, models })
-    
-    setPrompt(newPrompt)
-    setSelectedModels(models)
-    setIsLoading(true)
-    setEvaluationResults(true) // Added to set evaluation results state
+  const provider = PROVIDERS.find((p) => p.id === prefs.providerId) ?? PROVIDERS[0]
+  const liveModels = useMemo(() => prefs.models.split(',').map((m) => m.trim()).filter(Boolean).slice(0, 4), [prefs.models])
+  const judgeSameAsCandidate = prefs.mode === 'live' && (!prefs.judgeModel.trim() || liveModels.includes(prefs.judgeModel.trim()))
 
+  const pickScenario = (id: string) => {
+    const s = SCENARIOS.find((x) => x.id === id)
+    setScenarioId(id)
+    if (s) {
+      setPrompt(s.prompt)
+      setContext(s.context)
+    }
+  }
+
+  const canRun = prompt.trim().length > 0 && (answerSource === 'paste' ? pasted.trim().length > 0 : prefs.mode === 'demo' ? demoModels.length > 0 : liveModels.length > 0 && apiKey.length > 0)
+
+  async function run() {
+    setLoading(true)
+    setError(null)
     try {
-      // WHY: Simulate API call with realistic delay based on model count
-      // More models = more time needed (parallel API calls in real system)
-      const estimatedDelay = Math.min(models.length * 500, 2000)
-      await new Promise((resolve) => setTimeout(resolve, estimatedDelay))
-
-      // WHY: Generate results for each model
-      // In production, this would come from actual LLM API calls
-      const newResults: EvaluationResult[] = models.map((modelId) => ({
-        modelId,
-        modelName: modelNames[modelId] || modelId,
-        response: generateMockResponse(modelId, newPrompt),
-        timestamp: new Date(),
-        status: 'complete' as const
-      }))
-
-      console.log('[v0] Evaluation complete:', { resultCount: newResults.length })
-
-      // WHY: Update history and keep latest results at the top
-      // Allows users to see previous evaluations
-      setEvaluationHistory((prev) => [...newResults, ...prev.slice(0, 9)])
-    } catch (error) {
-      console.error('[v0] Evaluation error:', error)
+      const withKey = (model: string) => ({ provider: provider.kind, preset: provider.id === 'anthropic' || provider.id === 'openai' ? undefined : provider.id, model, apiKey })
+      const body = {
+        mode: prefs.mode,
+        cases: [{ id: scenarioId, prompt, context: context.trim() || undefined, answer: answerSource === 'paste' ? pasted : undefined }],
+        models: answerSource === 'paste' ? [] : prefs.mode === 'demo' ? demoModels.map((model) => ({ provider: 'demo', model })) : liveModels.map(withKey),
+        judge: prefs.mode === 'live' ? withKey(prefs.judgeModel.trim() || liveModels[0] || 'gpt-4o-mini') : undefined,
+        samples: answerSource === 'paste' ? 1 : prefs.samples,
+        rules,
+      }
+      const res = await fetch('/api/evaluate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) throw new Error(data?.error ?? `The server returned ${res.status}.`)
+      setReport(data as Report)
+      if (prefs.saveHistory) addRun(data as Report)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Check your connection and try again.')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
-  }, [modelNames])
+  }
 
-  // WHY: Memoize results to prevent unnecessary re-renders of MetricsPanel
-  // Only recalculates when evaluationHistory changes
-  const currentResults = useMemo(
-    () => evaluationHistory.filter((r) => r.status === 'complete'),
-    [evaluationHistory]
-  )
-
-  // WHY: Calculate pass/fail statistics for guardrails
-  // Shows how many evaluations passed all guardrail checks
-  const evaluationStats = useMemo(() => {
-    return {
-      total: currentResults.length,
-      passed: Math.floor(currentResults.length * 0.8), // Simulated pass rate
-      failed: Math.ceil(currentResults.length * 0.2)
-    }
-  }, [currentResults])
+  const downloadConfig = () => {
+    const yaml = buildConfigYaml({
+      mode: prefs.mode,
+      samples: prefs.samples,
+      provider: { kind: provider.kind, presetId: provider.id === 'anthropic' ? undefined : provider.id },
+      models: prefs.mode === 'demo' ? demoModels : liveModels,
+      judgeModel: prefs.judgeModel.trim() || undefined,
+      cases: [{ id: scenarioId, prompt, context: context.trim() || undefined, ...(answerSource === 'paste' ? { answer: pasted } : {}) }],
+      rules,
+    })
+    download('trustllm.yaml', yaml, 'text/yaml')
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-
-      <div className="container max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header with Stats */}
-        <div className="mb-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Link href="/">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
-              <h1 className="text-3xl font-bold text-foreground">Evaluation Dashboard</h1>
-            </div>
-          </div>
-
-          {/* WHY: Show evaluation statistics at the top for quick overview
-              Helps users understand platform usage and guardrail effectiveness */}
-          {currentResults.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card className="border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Total Evaluations</p>
-                <p className="text-3xl font-bold text-foreground mt-2">{evaluationStats.total}</p>
-              </Card>
-              <Card className="border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Passed Guardrails</p>
-                <p className="text-3xl font-bold text-green-400 mt-2">{evaluationStats.passed}</p>
-              </Card>
-              <Card className="border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Failed Guardrails</p>
-                <p className="text-3xl font-bold text-red-400 mt-2">{evaluationStats.failed}</p>
-              </Card>
-            </div>
-          )}
+      <main id="main" className="container mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Evaluate an answer</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Give a question and the source text the answer must stick to. TrustLLM scores each answer against your guardrail rules and returns PASS or FAIL with reasons.
+          </p>
         </div>
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="playground" className="space-y-6">
-          <TabsList className="bg-secondary">
-            <TabsTrigger value="playground" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Playground
-            </TabsTrigger>
-            <TabsTrigger value="guardrails" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Guardrails
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="gap-2">
-              <History className="h-4 w-4" />
-              History
-            </TabsTrigger>
-          </TabsList>
+        {report === null && !loading && (
+          <Card className="border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
+            <strong>First time here?</strong> An example is already filled in and Demo mode needs no key. Press <strong>Run evaluation</strong> to see one careful model pass and two flawed ones fail.
+          </Card>
+        )}
 
-          {/* Playground Tab */}
-          <TabsContent value="playground" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Left: Form */}
-              <div className="lg:col-span-1">
-                <EvaluationForm
-                  onSubmit={handleEvaluation}
-                  isLoading={isLoading}
-                />
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="space-y-4 border-border bg-card p-5 lg:col-span-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="scenario">Example</Label>
+              <select id="scenario" className={selectCls} value={scenarioId} onChange={(e) => pickScenario(e.target.value)}>
+                {SCENARIOS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.title}</option>
+                ))}
+                {!SCENARIOS.some((s) => s.id === scenarioId) && <option value={scenarioId}>Custom</option>}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="prompt">Question or prompt</Label>
+              <Textarea id="prompt" rows={2} maxLength={4000} value={prompt} onChange={(e) => { setPrompt(e.target.value); setScenarioId('custom') }} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="context">Source text the answer must be based on <span className="text-muted-foreground">(recommended)</span></Label>
+              <Textarea id="context" rows={5} maxLength={12000} value={context} onChange={(e) => { setContext(e.target.value); setScenarioId('custom') }} placeholder="Paste the policy, document or retrieved passage. Without it, grounding and unsupported-claim rules are skipped." />
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-foreground">Where does the answer come from?</legend>
+              <div className="flex gap-4 text-sm text-foreground">
+                <label className="flex items-center gap-2"><input type="radio" name="src" checked={answerSource === 'generate'} onChange={() => setAnswerSource('generate')} /> Models answer it</label>
+                <label className="flex items-center gap-2"><input type="radio" name="src" checked={answerSource === 'paste'} onChange={() => setAnswerSource('paste')} /> I have an answer to check</label>
               </div>
+            </fieldset>
+            {answerSource === 'paste' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="pasted">Answer to check</Label>
+                <Textarea id="pasted" rows={4} maxLength={8000} value={pasted} onChange={(e) => setPasted(e.target.value)} />
+              </div>
+            )}
+          </Card>
 
-              {/* Right: Results */}
-              <div className="space-y-6 lg:col-span-2">
-                {/* WHY: Show results if we have any from current evaluation
-                    Users can immediately see how their prompt performs across models */}
-                {currentResults.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-bold text-foreground">Evaluation Results</h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {currentResults.length} model{currentResults.length !== 1 ? 's' : ''} evaluated
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEvaluationHistory([])}
-                      >
-                        Clear All
-                      </Button>
-                    </div>
+          <Card className="space-y-4 border-border bg-card p-5 lg:col-span-2">
+            <div className="flex gap-2" role="group" aria-label="Mode">
+              <Button size="sm" variant={prefs.mode === 'demo' ? 'default' : 'outline'} onClick={() => update({ mode: 'demo' })}>Demo (no key)</Button>
+              <Button size="sm" variant={prefs.mode === 'live' ? 'default' : 'outline'} onClick={() => update({ mode: 'live' })}>Live (your key)</Button>
+            </div>
 
-                    {/* WHY: Render metrics panels in order of evaluation
-                        Better models or earlier results shown first for comparison */}
-                    <div className="grid gap-6 md:grid-cols-1">
-                      {currentResults.map((result) => (
-                        <MetricsPanel
-                          key={`${result.modelId}-${result.timestamp.getTime()}`}
-                          modelId={result.modelId}
-                          modelName={result.modelName}
-                          response={result.response}
-                        />
-                      ))}
-                    </div>
+            {prefs.mode === 'demo' ? (
+              <div className="space-y-3">
+                <p className="flex gap-2 text-xs text-muted-foreground"><Info className="mt-0.5 h-3 w-3 shrink-0" />Demo uses deterministic stand-ins for models and simple word-matching rules. No AI model is called. It shows the workflow; it does not measure any real model.</p>
+                {answerSource === 'generate' && (
+                  <div className="space-y-1.5">
+                    <Label>Stand-in models</Label>
+                    {DEMO_MODELS.map((m) => (
+                      <label key={m.id} className="flex items-start gap-2 text-sm text-foreground">
+                        <input type="checkbox" className="mt-1" checked={demoModels.includes(m.id)} onChange={(e) => setDemoModels((cur) => (e.target.checked ? [...cur, m.id] : cur.filter((x) => x !== m.id)))} />
+                        <span>{m.label}<span className="block text-xs text-muted-foreground">{m.blurb}</span></span>
+                      </label>
+                    ))}
                   </div>
-                ) : (
-                  <Card className="border-border bg-card/50 p-12 text-center">
-                    <BarChart3 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-semibold text-muted-foreground">
-                      No Results Yet
-                    </h3>
-                    <p className="text-sm text-muted-foreground max-w-xs">
-                      Enter a prompt on the left and select models to compare their responses and evaluation metrics
-                    </p>
-                  </Card>
                 )}
               </div>
-            </div>
-          </TabsContent>
-
-          {/* Guardrails Tab - Enhanced with detailed explanations */}
-          <TabsContent value="guardrails" className="space-y-6">
-            <div className="space-y-6">
-              {/* Info Card */}
-              <Card className="border-border bg-primary/10 border-primary/30 p-6">
-                <h3 className="font-semibold text-foreground mb-2">What are Guardrails?</h3>
-                <p className="text-sm text-muted-foreground">
-                  Guardrails are automated rules that validate LLM responses before they reach users. They ensure responses meet your quality, safety, and compliance standards. When a response fails a guardrail, it's either blocked or flagged for review.
-                </p>
-              </Card>
-
-              {/* WHY: Group guardrails by category for better organization
-                  Users can understand different types of guardrails and their purposes */}
-              <Card className="border-border bg-card p-6">
-                <h2 className="mb-6 text-2xl font-bold text-card-foreground">Response Quality Guardrails</h2>
-                <p className="mb-6 text-sm text-muted-foreground">
-                  Ensure responses meet minimum quality standards
-                </p>
-
-                <div className="space-y-4">
-                  {[
-                    {
-                      name: 'Minimum Grounding Score',
-                      description: 'Reject responses that score below 80% on grounding metrics',
-                      enabled: guardrailsEnabled.minGroundingScore >= 80,
-                      metric: '80%',
-                      impactLevel: 'High' as const
-                    },
-                    {
-                      name: 'Consistency Check',
-                      description: 'Validate answer consistency above 85% to ensure logical coherence',
-                      enabled: true,
-                      metric: '85%',
-                      impactLevel: 'Medium' as const
-                    }
-                  ].map((rule) => (
-                    <div
-                      key={rule.name}
-                      className="flex items-start justify-between rounded-lg border border-border bg-secondary p-4"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-card-foreground">{rule.name}</p>
-                          <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                            {rule.metric}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{rule.description}</p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Impact: <span className={`font-semibold ${rule.impactLevel === 'High' ? 'text-red-400' : 'text-yellow-400'}`}>
-                            {rule.impactLevel}
-                          </span>
-                        </p>
-                      </div>
-                      <div className={`h-6 w-11 rounded-full transition-colors flex-shrink-0 ${rule.enabled ? 'bg-green-500' : 'bg-muted'}`}>
-                        <div
-                          className={`h-5 w-5 rounded-full bg-white transition-transform ${
-                            rule.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              {/* Safety Guardrails */}
-              <Card className="border-border bg-card p-6">
-                <h2 className="mb-6 text-2xl font-bold text-card-foreground">Safety & Compliance Guardrails</h2>
-                <p className="mb-6 text-sm text-muted-foreground">
-                  Protect users and ensure regulatory compliance
-                </p>
-
-                <div className="space-y-4">
-                  {[
-                    {
-                      name: 'Block Unsafe Content',
-                      description: 'Automatically reject responses flagged as unsafe, harmful, or unethical',
-                      enabled: guardrailsEnabled.blockUnsafe,
-                      riskLevel: 'Critical' as const
-                    },
-                    {
-                      name: 'Hallucination Blocker',
-                      description: `Block responses with hallucination risk higher than ${guardrailsEnabled.maxHallucination}`,
-                      enabled: true,
-                      riskLevel: 'High' as const
-                    },
-                    {
-                      name: 'Require Citations',
-                      description: 'Ensure responses include verifiable citations for claims made',
-                      enabled: guardrailsEnabled.requireCitations,
-                      riskLevel: 'High' as const
-                    }
-                  ].map((rule) => (
-                    <div
-                      key={rule.name}
-                      className="flex items-start justify-between rounded-lg border border-border bg-secondary p-4"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-card-foreground">{rule.name}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            rule.riskLevel === 'Critical' 
-                              ? 'bg-red-500/20 text-red-300'
-                              : 'bg-yellow-500/20 text-yellow-300'
-                          }`}>
-                            {rule.riskLevel}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{rule.description}</p>
-                      </div>
-                      <div className={`h-6 w-11 rounded-full transition-colors flex-shrink-0 ${rule.enabled ? 'bg-green-500' : 'bg-muted'}`}>
-                        <div
-                          className={`h-5 w-5 rounded-full bg-white transition-transform ${
-                            rule.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-
-              {/* Save Configuration */}
-              <div className="flex gap-3">
-                <Button size="lg" className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Configuration
-                </Button>
-                <Button variant="outline" size="lg">
-                  Reset to Defaults
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* History Tab - Shows evaluation history with filtering */}
-          <TabsContent value="logs" className="space-y-6">
-            {/* WHY: Show history with filtering and analytics
-                Helps users track evaluations over time and identify patterns */}
-            {evaluationHistory.length > 0 ? (
-              <div className="space-y-6">
-                {/* Summary Stats */}
-                <div className="grid gap-4 md:grid-cols-4">
-                  <Card className="border-border bg-card p-4">
-                    <p className="text-xs text-muted-foreground">Total Evaluations</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">{evaluationHistory.length}</p>
-                  </Card>
-                  <Card className="border-border bg-card p-4">
-                    <p className="text-xs text-muted-foreground">Average Score</p>
-                    <p className="text-3xl font-bold text-accent mt-2">
-                      {Math.round(evaluationStats.total > 0 ? (evaluationStats.passed / evaluationStats.total) * 100 : 0)}%
-                    </p>
-                  </Card>
-                  <Card className="border-border bg-card p-4">
-                    <p className="text-xs text-muted-foreground">Pass Rate</p>
-                    <p className="text-3xl font-bold text-green-400 mt-2">
-                      {Math.round(evaluationStats.total > 0 ? (evaluationStats.passed / evaluationStats.total) * 100 : 0)}%
-                    </p>
-                  </Card>
-                  <Card className="border-border bg-card p-4">
-                    <p className="text-xs text-muted-foreground">Models Tested</p>
-                    <p className="text-3xl font-bold text-foreground mt-2">
-                      {new Set(evaluationHistory.map(r => r.modelId)).size}
-                    </p>
-                  </Card>
-                </div>
-
-                {/* Evaluation History Table */}
-                <Card className="border-border bg-card p-6">
-                  <h2 className="mb-6 text-2xl font-bold text-card-foreground">Evaluation History</h2>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Model</th>
-                          <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Time</th>
-                          <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Response Length</th>
-                          <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Status</th>
-                          <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* WHY: Display most recent evaluations first for immediate visibility */}
-                        {evaluationHistory.slice(0, 10).map((result, idx) => {
-                          const responseLength = result.response.split(/\s+/).length
-                          const isRecent = idx < 3
-
-                          return (
-                            <tr 
-                              key={idx} 
-                              className={`border-b border-border transition-colors ${
-                                isRecent 
-                                  ? 'bg-green-500/5 hover:bg-green-500/10' 
-                                  : 'hover:bg-secondary/50'
-                              }`}
-                            >
-                              <td className="px-4 py-3 text-foreground font-medium">{result.modelName}</td>
-                              <td className="px-4 py-3 text-muted-foreground">
-                                {result.timestamp.toLocaleTimeString()}
-                              </td>
-                              <td className="px-4 py-3 text-foreground">
-                                {responseLength} words
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold bg-green-500/10 text-green-400">
-                                  ✓ Complete
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <Button variant="ghost" size="sm">
-                                  View
-                                </Button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {evaluationHistory.length > 10 && (
-                    <div className="mt-4 text-center">
-                      <Button variant="outline">
-                        Load More ({evaluationHistory.length - 10} more)
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-              </div>
             ) : (
-              <Card className="border-border bg-card/50 p-12 text-center">
-                <History className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-semibold text-muted-foreground">
-                  No Evaluation History
-                </h3>
-                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                  Run evaluations in the Playground tab to see your history here. All evaluations are logged for compliance and analysis.
-                </p>
-              </Card>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="provider">Provider</Label>
+                  <select id="provider" className={selectCls} value={prefs.providerId} onChange={(e) => update({ providerId: e.target.value, models: PROVIDERS.find((p) => p.id === e.target.value)?.example ?? '' })}>
+                    {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="key">API key</Label>
+                  <Input id="key" type="password" autoComplete="off" spellCheck={false} value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your key" />
+                  <p className="flex gap-2 text-xs text-muted-foreground"><Lock className="mt-0.5 h-3 w-3 shrink-0" />Kept in this tab&apos;s memory only. Sent with each request to your chosen provider through this server, never stored, logged, saved in history or included in exports. Gone when you close or reload the tab.</p>
+                </div>
+                {answerSource === 'generate' && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="models">Models to compare (comma separated, up to 4)</Label>
+                    <Input id="models" value={prefs.models} onChange={(e) => update({ models: e.target.value })} placeholder={provider.example} />
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="judge">Judge model <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input id="judge" value={prefs.judgeModel} onChange={(e) => update({ judgeModel: e.target.value })} placeholder={`defaults to ${liveModels[0] ?? 'the first model'}`} />
+                  {judgeSameAsCandidate && <p className="text-xs text-amber-600 dark:text-amber-400">The judge is the same model being judged. LLM judges tend to favour their own output. A different judge model gives a fairer score.</p>}
+                </div>
+              </div>
             )}
-          </TabsContent>
-        </Tabs>
-      </div>
+
+            {answerSource === 'generate' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="samples">Samples per answer: {prefs.samples}</Label>
+                <input id="samples" type="range" min={1} max={4} value={prefs.samples} onChange={(e) => update({ samples: Number(e.target.value) })} className="w-full" />
+                <p className="text-xs text-muted-foreground">1 skips the consistency check. 2 or more re-asks the model and checks that its facts stay the same.</p>
+              </div>
+            )}
+
+            <div className="rounded-md border border-border p-3 text-xs text-muted-foreground">
+              <div className="mb-1 flex items-center justify-between text-foreground"><span className="font-medium">{rules.length} guardrail rules active</span><Link href="/guardrails" className="underline">edit</Link></div>
+              <ul className="list-disc space-y-0.5 pl-4">{rules.slice(0, 6).map((r, i) => <li key={i}>{ruleName(r)}{!r.blocking && ' (warning)'}</li>)}</ul>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={prefs.saveHistory} onChange={(e) => update({ saveHistory: e.target.checked })} /> Save results to this browser&apos;s history</label>
+
+            <Button className="w-full gap-2" disabled={!canRun || loading} onClick={run}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {loading ? 'Evaluating...' : 'Run evaluation'}
+            </Button>
+            {!canRun && !loading && <p className="text-xs text-muted-foreground">{prefs.mode === 'live' && !apiKey ? 'Add your API key to run live.' : 'Fill in the question and choose at least one model or paste an answer.'}</p>}
+          </Card>
+        </div>
+
+        {error && (
+          <div role="alert" className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm text-foreground">
+            <strong>Could not run the evaluation.</strong> {error}
+          </div>
+        )}
+
+        {report && (
+          <section ref={resultsRef} className="scroll-mt-20 space-y-4" aria-live="polite">
+            <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 ${report.summary.gate === 'PASS' ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
+              <div className="flex items-center gap-3">
+                {report.summary.gate === 'PASS' ? <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /> : <ShieldAlert className="h-6 w-6 text-red-600 dark:text-red-400" />}
+                <div>
+                  <div className="text-lg font-semibold text-foreground" data-testid="gate">Release gate: {report.summary.gate} <span className="font-normal text-muted-foreground">({report.summary.passed} passed, {report.summary.failed} failed{report.summary.errors > 0 && `, ${report.summary.errors} errors`})</span></div>
+                  <div className="text-sm text-foreground" data-testid="recommendation"><strong>{report.recommendation.headline}.</strong> {report.recommendation.detail}</div>
+                </div>
+              </div>
+              <ModeBadge mode={report.mode} />
+            </div>
+            {report.notes.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{report.results.map((r, i) => <ResultCard key={i} r={r} />)}</div>
+            <div className="flex flex-wrap items-center gap-3">
+              <ExportButtons report={report} />
+              <Button size="sm" variant="outline" className="gap-1" onClick={downloadConfig}><FileDown className="h-3 w-3" /> Download trustllm.yaml for CI</Button>
+              {prefs.saveHistory && <Link href="/audit-logs"><Badge variant="secondary">Saved to History</Badge></Link>}
+            </div>
+          </section>
+        )}
+
+        {!report && !error && !loading && (
+          <Card className="border-dashed border-border p-8 text-center text-sm text-muted-foreground">No results yet. Results appear here with a PASS or FAIL for each answer.</Card>
+        )}
+      </main>
     </div>
   )
 }
