@@ -19,6 +19,8 @@ export function splitSentences(text: string): string[] {
       if (t.split(/\s+/).length >= 3) out.push(t)
     }
   }
+  // Short answers ("Delhi", "Arthur's Magazine") are a single claim.
+  if (out.length === 0 && text.trim()) return [text.trim()]
   return out
 }
 

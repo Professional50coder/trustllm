@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "report": "tsx scripts/sample-report.ts",
     "build:cli": "node scripts/build-cli.mjs",
-    "gate": "node dist/cli.cjs run"
+    "gate": "node dist/cli.cjs run",
+    "evalset": "tsx scripts/evalset.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
