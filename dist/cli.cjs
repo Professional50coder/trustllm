@@ -1505,7 +1505,7 @@ var require_stringify = __commonJS({
         props.push(doc.directives.tagString(tag));
       return props.join(" ");
     }
-    function stringify(item, ctx, onComment, onChompKeep) {
+    function stringify2(item, ctx, onComment, onChompKeep) {
       if (identity.isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
       if (identity.isAlias(item)) {
@@ -1534,7 +1534,7 @@ var require_stringify = __commonJS({
 ${ctx.indent}${str}`;
     }
     exports2.createStringifyContext = createStringifyContext;
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -1544,7 +1544,7 @@ var require_stringifyPair = __commonJS({
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
       const { allNullValues, doc, indent, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
@@ -1566,7 +1566,7 @@ var require_stringifyPair = __commonJS({
       });
       let keyCommentDone = false;
       let chompKeep = false;
-      let str = stringify.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
+      let str = stringify2.stringify(key, ctx, () => keyCommentDone = true, () => chompKeep = true);
       if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
           throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -1618,7 +1618,7 @@ ${indent}:`;
         ctx.indent = ctx.indent.substring(2);
       }
       let valueCommentDone = false;
-      const valueStr = stringify.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
+      const valueStr = stringify2.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
       let ws = " ";
       if (keyComment || vsb || vcb) {
         ws = vsb ? "\n" : "";
@@ -1759,7 +1759,7 @@ var require_addPairToJSMap = __commonJS({
     "use strict";
     var log = require_log();
     var merge = require_merge();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var identity = require_identity();
     var toJS = require_toJS();
     function addPairToJSMap(ctx, map, { key, value }) {
@@ -1795,7 +1795,7 @@ var require_addPairToJSMap = __commonJS({
       if (typeof jsKey !== "object")
         return String(jsKey);
       if (identity.isNode(key) && ctx?.doc) {
-        const strCtx = stringify.createStringifyContext(ctx.doc, {});
+        const strCtx = stringify2.createStringifyContext(ctx.doc, {});
         strCtx.anchors = /* @__PURE__ */ new Set();
         for (const node of ctx.anchors.keys())
           strCtx.anchors.add(node.anchor);
@@ -1862,12 +1862,12 @@ var require_stringifyCollection = __commonJS({
   "node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/stringify/stringifyCollection.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyCollection(collection, ctx, options) {
       const flow = ctx.inFlow ?? collection.flow;
-      const stringify2 = flow ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify2(collection, ctx, options);
+      const stringify3 = flow ? stringifyFlowCollection : stringifyBlockCollection;
+      return stringify3(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent, options: { commentString } } = ctx;
@@ -1892,7 +1892,7 @@ var require_stringifyCollection = __commonJS({
           }
         }
         chompKeep = false;
-        let str2 = stringify.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
+        let str2 = stringify2.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
         if (comment2)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
@@ -1959,7 +1959,7 @@ ${indent}${line}` : "\n";
         }
         if (comment)
           reqNewline = true;
-        let str = stringify.stringify(item, itemCtx, () => comment = null);
+        let str = stringify2.stringify(item, itemCtx, () => comment = null);
         reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
@@ -3320,7 +3320,7 @@ var require_stringifyDocument = __commonJS({
   "node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/stringify/stringifyDocument.js"(exports2) {
     "use strict";
     var identity = require_identity();
-    var stringify = require_stringify();
+    var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
       const lines = [];
@@ -3335,7 +3335,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify.createStringifyContext(doc, options);
+      const ctx = stringify2.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -3357,7 +3357,7 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body = stringify2.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
         if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
@@ -3365,7 +3365,7 @@ var require_stringifyDocument = __commonJS({
         } else
           lines.push(body);
       } else {
-        lines.push(stringify.stringify(doc.contents, ctx));
+        lines.push(stringify2.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
@@ -5501,7 +5501,7 @@ var require_cst_scalar = __commonJS({
 var require_cst_stringify = __commonJS({
   "node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/parse/cst-stringify.js"(exports2) {
     "use strict";
-    var stringify = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
+    var stringify2 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
       switch (token.type) {
         case "block-scalar": {
@@ -5554,7 +5554,7 @@ var require_cst_stringify = __commonJS({
         res += stringifyToken(value);
       return res;
     }
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -7284,7 +7284,7 @@ var require_public_api = __commonJS({
       }
       return doc.toJS(Object.assign({ reviver: _reviver }, options));
     }
-    function stringify(value, replacer, options) {
+    function stringify2(value, replacer, options) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
@@ -7309,7 +7309,7 @@ var require_public_api = __commonJS({
     exports2.parse = parse;
     exports2.parseAllDocuments = parseAllDocuments;
     exports2.parseDocument = parseDocument;
-    exports2.stringify = stringify;
+    exports2.stringify = stringify2;
   }
 });
 
@@ -7369,6 +7369,7 @@ var require_dist = __commonJS({
 var main_exports = {};
 __export(main_exports, {
   EXAMPLE_CONFIG: () => EXAMPLE_CONFIG,
+  exampleConfig: () => exampleConfig,
   main: () => main
 });
 module.exports = __toCommonJS(main_exports);
@@ -11302,17 +11303,17 @@ function cleanParams(params, data) {
 function custom(check, _params = {}, fatal) {
   if (check)
     return ZodAny.create().superRefine((data, ctx) => {
-      const r = check(data);
-      if (r instanceof Promise) {
-        return r.then((r2) => {
-          if (!r2) {
+      const r2 = check(data);
+      if (r2 instanceof Promise) {
+        return r2.then((r3) => {
+          if (!r3) {
             const params = cleanParams(_params, data);
             const _fatal = params.fatal ?? fatal ?? true;
             ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
           }
         });
       }
-      if (!r) {
+      if (!r2) {
         const params = cleanParams(_params, data);
         const _fatal = params.fatal ?? fatal ?? true;
         ctx.addIssue({ code: "custom", ...params, fatal: _fatal });
@@ -11487,7 +11488,7 @@ function luhn(digits) {
 }
 function findPii(text) {
   const found = [];
-  for (const [k, r] of Object.entries(PII_PATTERNS)) if (r.test(text)) found.push(k);
+  for (const [k, r2] of Object.entries(PII_PATTERNS)) if (r2.test(text)) found.push(k);
   for (const m of text.match(/\b(?:\d[ -]?){13,19}\b/g) ?? []) {
     const d = m.replace(/\D/g, "");
     if (d.length >= 13 && d.length <= 19 && luhn(d)) {
@@ -11505,7 +11506,7 @@ var SECRET_PATTERNS = [
   ["Slack token", /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/]
 ];
 function findSecrets(text) {
-  return SECRET_PATTERNS.filter(([, r]) => r.test(text)).map(([n]) => n);
+  return SECRET_PATTERNS.filter(([, r2]) => r2.test(text)).map(([n]) => n);
 }
 function hasCitations(text) {
   return /\[\d+\]|\(\w[\w\s.&,-]*,?\s*\d{4}\)|https?:\/\/\S+|\bsource:/i.test(text);
@@ -11588,9 +11589,9 @@ function ruleName(rule) {
   }
 }
 var TOX_LABEL = ["none", "mild", "clear", "severe"];
-var pass = (r, reason) => ({ ...r, status: "pass", reason });
-var fail = (r, reason) => ({ ...r, status: "fail", reason });
-var skip = (r, reason) => ({ ...r, status: "skip", reason });
+var pass = (r2, reason) => ({ ...r2, status: "pass", reason });
+var fail = (r2, reason) => ({ ...r2, status: "fail", reason });
+var skip = (r2, reason) => ({ ...r2, status: "skip", reason });
 function evaluateRules(rules, answer, s) {
   return rules.map((rule, i) => {
     const meta = {
@@ -11716,22 +11717,24 @@ function createOpenAICompatible(spec, opts = {}) {
       };
       const headers = { authorization: `Bearer ${spec.apiKey ?? ""}` };
       for (let attempt = 0; attempt < 3; attempt++) {
-        const r = await post(`${base2}/chat/completions`, headers, body, spec.apiKey, opts);
-        if (r.ok) {
-          const text = JSON.parse(r.text)?.choices?.[0]?.message?.content;
+        const r2 = await post(`${base2}/chat/completions`, headers, body, spec.apiKey, opts);
+        if (r2.ok) {
+          const j = JSON.parse(r2.text);
+          const text = j?.choices?.[0]?.message?.content;
           if (typeof text !== "string") throw new ProviderError("Provider returned no text.");
+          opts.onUsage?.({ input: j?.usage?.prompt_tokens ?? null, output: j?.usage?.completion_tokens ?? null });
           return text;
         }
-        if (r.status === 400 && /max_completion_tokens/i.test(r.text) && "max_tokens" in body) {
+        if (r2.status === 400 && /max_completion_tokens/i.test(r2.text) && "max_tokens" in body) {
           body.max_completion_tokens = body.max_tokens;
           delete body.max_tokens;
           continue;
         }
-        if (r.status === 400 && /temperature/i.test(r.text) && "temperature" in body) {
+        if (r2.status === 400 && /temperature/i.test(r2.text) && "temperature" in body) {
           delete body.temperature;
           continue;
         }
-        throw new ProviderError(explain(r.status, r.text), r.status);
+        throw new ProviderError(explain(r2.status, r2.text), r2.status);
       }
       throw new ProviderError("Provider rejected the request parameters.");
     }
@@ -11750,18 +11753,20 @@ function createAnthropic(spec, opts = {}) {
       };
       const headers = { "x-api-key": spec.apiKey ?? "", "anthropic-version": "2023-06-01" };
       for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await post("https://api.anthropic.com/v1/messages", headers, body, spec.apiKey, opts);
-        if (r.ok) {
-          const blocks = JSON.parse(r.text)?.content;
+        const r2 = await post("https://api.anthropic.com/v1/messages", headers, body, spec.apiKey, opts);
+        if (r2.ok) {
+          const j = JSON.parse(r2.text);
+          const blocks = j?.content;
           const text = Array.isArray(blocks) ? blocks.filter((b) => b.type === "text").map((b) => b.text).join("") : "";
           if (!text) throw new ProviderError("Provider returned no text.");
+          opts.onUsage?.({ input: j?.usage?.input_tokens ?? null, output: j?.usage?.output_tokens ?? null });
           return text;
         }
-        if (r.status === 400 && /temperature/i.test(r.text) && "temperature" in body) {
+        if (r2.status === 400 && /temperature/i.test(r2.text) && "temperature" in body) {
           delete body.temperature;
           continue;
         }
-        throw new ProviderError(explain(r.status, r.text), r.status);
+        throw new ProviderError(explain(r2.status, r2.text), r2.status);
       }
       throw new ProviderError("Provider rejected the request parameters.");
     }
@@ -12008,37 +12013,45 @@ var FIXES = {
   regex: "Check the output format instructions against the pattern in this rule."
 };
 var failed = (checks) => checks.filter((c) => c.status === "fail");
-function explainResult(r) {
-  if (r.decision === "ERROR") {
-    return { explanation: `This answer could not be evaluated: ${r.error ?? "unknown error"}`, fixes: ["Check the API key, the model name and your provider quota, then run it again."] };
+function explainResult(r2) {
+  if (r2.decision === "ERROR") {
+    return { explanation: `This answer could not be evaluated: ${r2.error ?? "unknown error"}`, fixes: ["Check the API key, the model name and your provider quota, then run it again."] };
   }
-  const bad = failed(r.checks);
+  const bad = failed(r2.checks);
   const blocking = bad.filter((c) => c.blocking);
   const warnings = bad.filter((c) => !c.blocking);
-  const skipped = r.checks.filter((c) => c.status === "skip");
+  const skipped = r2.checks.filter((c) => c.status === "skip");
   const parts = [];
-  if (r.decision === "FAIL") {
+  if (r2.decision === "FAIL") {
     parts.push(`Failed because ${blocking.length === 1 ? "a blocking rule was" : `${blocking.length} blocking rules were`} broken: ${blocking.map((c) => `${c.name}: ${c.reason.replace(/\.$/, "")}`).join("; ")}.`);
   } else {
-    parts.push(`Passed: all ${r.checks.filter((c) => c.blocking && c.status !== "skip").length} blocking rules that could be checked were satisfied.`);
+    parts.push(`Passed: all ${r2.checks.filter((c) => c.blocking && c.status !== "skip").length} blocking rules that could be checked were satisfied.`);
   }
   if (warnings.length) parts.push(`Warnings (do not block): ${warnings.map((c) => c.name).join("; ")}.`);
   if (skipped.length) parts.push(`${skipped.length} rule${skipped.length === 1 ? " was" : "s were"} skipped because the data needed was missing (${skipped.map((c) => c.name).join("; ")}). A pass here says nothing about those.`);
-  if (r.mode === "demo") parts.push("This is a demo run with offline heuristics, so treat it as an illustration, not evidence.");
+  if (r2.mode === "demo") parts.push("This is a demo run with offline heuristics, so treat it as an illustration, not evidence.");
   const fixes = [...new Set(bad.map((c) => FIXES[c.type]).filter(Boolean))];
-  const flagged = r.claims.filter((c) => c.verdict === "unsupported" || c.verdict === "contradicted");
+  const flagged = r2.claims.filter((c) => c.verdict === "unsupported" || c.verdict === "contradicted");
   if (flagged.length) fixes.push(`Review ${flagged.length === 1 ? "this claim" : "these claims"}: ${flagged.slice(0, 3).map((c) => `"${c.text}"`).join(" ")}`);
   return { explanation: parts.join(" "), fixes };
 }
 function recommend(results, mode) {
   const total = results.length;
-  const errors = results.filter((r) => r.decision === "ERROR").length;
-  const pass2 = results.filter((r) => r.decision === "PASS");
-  const fail2 = results.filter((r) => r.decision === "FAIL");
-  const skipped = results.some((r) => r.checks.some((c) => c.status === "skip"));
+  const errors = results.filter((r2) => r2.decision === "ERROR").length;
+  const pass2 = results.filter((r2) => r2.decision === "PASS");
+  const approved = results.filter((r2) => r2.decision === "FAIL" && r2.approval);
+  const fail2 = results.filter((r2) => r2.decision === "FAIL" && !r2.approval);
+  const skipped = results.some((r2) => r2.checks.some((c) => c.status === "skip"));
   const demoNote = mode === "demo" ? " This was a demo run; repeat it in live mode before relying on it." : "";
   if (total === 0) return { verdict: "block", headline: "Nothing was evaluated", detail: "Add at least one question and one model or answer." };
   if (errors > 0) return { verdict: "fix", headline: "Fix the errors and run again", detail: `${errors} of ${total} evaluations could not run, so the gate cannot pass. See the error messages on those cards.` };
+  if (fail2.length === 0 && approved.length > 0) {
+    return {
+      verdict: "ship",
+      headline: "Released with human approval",
+      detail: `${approved.length} answer${approved.length === 1 ? "" : "s"} failed the rules and ${approved.length === 1 ? "was" : "were"} approved by a reviewer. The failures and the reasons are kept in the report.${demoNote}`
+    };
+  }
   if (fail2.length === 0) {
     return {
       verdict: "ship",
@@ -12047,10 +12060,19 @@ function recommend(results, mode) {
     };
   }
   if (pass2.length > 0) {
-    const names = [...new Set(pass2.map((r) => r.model))].join(", ");
+    const names = [...new Set(pass2.map((r2) => r2.model))].join(", ");
     return { verdict: "fix", headline: `Only ${names} cleared the gate`, detail: `${fail2.length} of ${total} answers failed. Prefer the ones that passed, or apply the suggested fixes to the failing ones and re-run.${demoNote}` };
   }
   return { verdict: "block", headline: "Do not ship this yet", detail: `Every answer failed at least one blocking rule. Apply the suggested fixes, then re-run.${demoNote}` };
+}
+
+// lib/core/approval.ts
+function summarize(results) {
+  const passed = results.filter((r2) => r2.decision === "PASS").length;
+  const approved = results.filter((r2) => r2.decision === "FAIL" && r2.approval).length;
+  const failed2 = results.filter((r2) => r2.decision === "FAIL" && !r2.approval).length;
+  const errors = results.filter((r2) => r2.decision === "ERROR").length;
+  return { total: results.length, passed, failed: failed2, errors, approved, gate: failed2 === 0 && errors === 0 && results.length > 0 ? "PASS" : "FAIL" };
 }
 
 // lib/core/evaluate.ts
@@ -12066,8 +12088,17 @@ function overallScore(s) {
   const w = parts.reduce((a, [, x]) => a + x, 0);
   return clamp(parts.reduce((a, [v, x]) => a + v * x, 0) / w);
 }
-async function evaluateOne(c, caseId, model, opts, judge) {
+async function evaluateOne(c, caseId, model, opts) {
   const t0 = Date.now();
+  const usage = { calls: 0, inputTokens: null, outputTokens: null };
+  const popts = {
+    ...opts.providerOptions,
+    onUsage: (u) => {
+      usage.calls++;
+      if (u.input !== null) usage.inputTokens = (usage.inputTokens ?? 0) + u.input;
+      if (u.output !== null) usage.outputTokens = (usage.outputTokens ?? 0) + u.output;
+    }
+  };
   const rules = opts.rules ?? DEFAULT_RULES;
   const samples = Math.max(1, Math.min(opts.samples ?? 1, 5));
   const modelName = model ? model.model : PROVIDED_ANSWER;
@@ -12080,7 +12111,7 @@ async function evaluateOne(c, caseId, model, opts, judge) {
     if (answer === void 0) {
       if (!model) throw new Error("No model given and no answer provided.");
       if (live) {
-        const p = createProvider(model, opts.providerOptions);
+        const p = createProvider(model, popts);
         const user = c.context ? `Context:
 ${c.context}
 
@@ -12096,7 +12127,9 @@ Question: ${c.prompt}` : c.prompt;
     let toxicity;
     let consistency;
     if (live) {
-      if (!judge) throw new Error("No judge available.");
+      const judgeSpec = opts.judge ?? model ?? opts.models[0];
+      if (!judgeSpec) throw new Error("No judge available.");
+      const judge = createProvider(judgeSpec, popts);
       const j = await judgeClaims(judge, c.prompt, answer, c.context);
       claims = j.claims;
       toxicity = j.toxicity;
@@ -12117,37 +12150,23 @@ Question: ${c.prompt}` : c.prompt;
     };
     const checks = evaluateRules(rules, answer, signals);
     const decision = decide(checks);
-    return { ...base2, answer, signals, claims, checks, decision, overall: overallScore(signals), ...explainResult({ decision, checks, claims, mode: opts.mode }), latencyMs: Date.now() - t0 };
+    return { ...base2, answer, signals, claims, checks, decision, overall: overallScore(signals), ...explainResult({ decision, checks, claims, mode: opts.mode }), latencyMs: Date.now() - t0, usage };
   } catch (e) {
     const key = model?.apiKey ?? opts.judge?.apiKey;
     const msg = redact(e instanceof Error ? e.message : String(e), key);
     const empty = { grounding: null, hallucinationRisk: null, expressedConfidence: 0, toxicity: 0, consistency: null, answerWords: 0 };
-    return { ...base2, answer: "", signals: empty, claims: [], checks: [], decision: "ERROR", overall: null, error: msg, ...explainResult({ decision: "ERROR", checks: [], claims: [], error: msg, mode: opts.mode }), latencyMs: Date.now() - t0 };
+    return { ...base2, answer: "", signals: empty, claims: [], checks: [], decision: "ERROR", overall: null, error: msg, ...explainResult({ decision: "ERROR", checks: [], claims: [], error: msg, mode: opts.mode }), latencyMs: Date.now() - t0, usage };
   }
 }
 async function evaluate(cases, opts) {
   const rules = opts.rules ?? DEFAULT_RULES;
-  let judge = null;
-  if (opts.mode === "live") {
-    const spec = opts.judge ?? opts.models[0];
-    if (spec) {
-      try {
-        judge = createProvider(spec, opts.providerOptions);
-      } catch {
-        judge = null;
-      }
-    }
-  }
   const jobs = [];
   cases.forEach((c, i) => {
     const id = c.id ?? `case-${i + 1}`;
-    if (c.answer !== void 0) jobs.push(evaluateOne(c, id, null, opts, judge));
-    else for (const m of opts.models) jobs.push(evaluateOne(c, id, m, opts, judge));
+    if (c.answer !== void 0) jobs.push(evaluateOne(c, id, null, opts));
+    else for (const m of opts.models) jobs.push(evaluateOne(c, id, m, opts));
   });
   const results = await Promise.all(jobs);
-  const passed = results.filter((r) => r.decision === "PASS").length;
-  const failed2 = results.filter((r) => r.decision === "FAIL").length;
-  const errors = results.filter((r) => r.decision === "ERROR").length;
   const live = opts.mode === "live";
   const judgeName = live ? (opts.judge ?? opts.models[0])?.model ?? "unknown" : OFFLINE_JUDGE;
   const notes = live ? ["Scores come from an LLM judge using a written rubric. A judge is an opinion: it can be wrong, favour long answers and favour its own model family.", "Prefer a judge from a different model family than the one being evaluated."] : ["DEMO MODE: answers come from deterministic stand-ins and scores from simple offline word-overlap and keyword rules. No language model was called. These numbers illustrate the workflow and are not a measurement of any real model."];
@@ -12159,7 +12178,7 @@ async function evaluate(cases, opts) {
     samples: Math.max(1, Math.min(opts.samples ?? 1, 5)),
     guardrails: rules,
     results,
-    summary: { total: results.length, passed, failed: failed2, errors, gate: failed2 === 0 && errors === 0 && results.length > 0 ? "PASS" : "FAIL" },
+    summary: summarize(results),
     recommendation: recommend(results, opts.mode),
     notes
   };
@@ -12171,37 +12190,236 @@ function toJson(report) {
 }
 var cell = (s) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 var pct = (n) => n === null ? "n/a" : `${n}%`;
-function signalLine(r) {
-  const s = r.signals;
+function signalLine(r2) {
+  const s = r2.signals;
   return `grounding ${pct(s.grounding)}, unsupported claims ${pct(s.hallucinationRisk)}, consistency ${pct(s.consistency)}, toxicity ${TOX_LABEL[s.toxicity]}`;
 }
 function toMarkdown(report) {
   const L = [];
   L.push("# TrustLLM release-gate report", "");
   L.push(`Gate: **${report.summary.gate}**  (${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.errors} errors, ${report.summary.total} total)`, "");
+  const u = report.results.reduce((a, r2) => ({ calls: a.calls + r2.usage.calls, tin: a.tin + (r2.usage.inputTokens ?? 0), tout: a.tout + (r2.usage.outputTokens ?? 0), ms: Math.max(a.ms, r2.latencyMs) }), { calls: 0, tin: 0, tout: 0, ms: 0 });
+  L.push(`Usage: ${u.calls} provider calls, ${u.tin + u.tout > 0 ? `${u.tin} input and ${u.tout} output tokens (as reported by the provider)` : "token counts not reported"}, slowest result ${(u.ms / 1e3).toFixed(1)} s.`, "");
   L.push(`Mode: **${report.mode === "demo" ? "DEMO (offline heuristics, no model called)" : "LIVE (LLM judge)"}**  |  Judge: ${report.judge}  |  Samples per answer: ${report.samples}  |  Generated: ${report.generatedAt}`, "");
   L.push(`Recommendation: **${report.recommendation.headline}**. ${report.recommendation.detail}`, "");
   for (const n of report.notes) L.push(`> ${n}`);
   L.push("", "| Case | Model | Decision | Overall | Scores |", "|---|---|---|---|---|");
-  for (const r of report.results) L.push(`| ${cell(r.caseId)} | ${cell(r.model)} | ${r.decision} | ${r.overall ?? "n/a"} | ${r.decision === "ERROR" ? cell(r.error ?? "") : cell(signalLine(r))} |`);
-  for (const r of report.results) {
-    L.push("", `## ${r.caseId} / ${r.model}: ${r.decision}`, "", `Prompt: ${r.prompt}`, "");
-    if (r.decision === "ERROR") {
-      L.push(`Error: ${r.error}`);
+  for (const r2 of report.results) L.push(`| ${cell(r2.caseId)} | ${cell(r2.model)} | ${r2.decision} | ${r2.overall ?? "n/a"} | ${r2.decision === "ERROR" ? cell(r2.error ?? "") : cell(signalLine(r2))} |`);
+  for (const r2 of report.results) {
+    L.push("", `## ${r2.caseId} / ${r2.model}: ${r2.decision}`, "", `Prompt: ${r2.prompt}`, "");
+    if (r2.decision === "ERROR") {
+      L.push(`Error: ${r2.error}`);
       continue;
     }
-    L.push(r.explanation, "");
-    if (r.fixes.length) L.push("Suggested fixes:", "", ...r.fixes.map((f) => `- ${f}`), "");
+    if (r2.approval) L.push(`**Approved by a reviewer on ${r2.approval.at}.** Reason: ${r2.approval.reason}`, "");
+    L.push(r2.explanation, "");
+    if (r2.fixes.length) L.push("Suggested fixes:", "", ...r2.fixes.map((f) => `- ${f}`), "");
     L.push("Rules:", "");
-    for (const c of r.checks) L.push(`- ${c.status.toUpperCase()}${c.blocking ? "" : " (warning only)"}: ${c.name}. ${c.reason}`);
-    const flagged = r.claims.filter((c) => c.verdict !== "supported");
+    for (const c of r2.checks) L.push(`- ${c.status.toUpperCase()}${c.blocking ? "" : " (warning only)"}: ${c.name}. ${c.reason}`);
+    const flagged = r2.claims.filter((c) => c.verdict !== "supported");
     if (flagged.length) {
       L.push("", "Claims that were not supported:", "");
       for (const c of flagged) L.push(`- [${c.verdict}] ${c.text}${c.note ? ` (${c.note})` : ""}`);
     }
-    L.push("", "Answer:", "", ...r.answer.split("\n").map((l) => `> ${l}`));
+    L.push("", "Answer:", "", ...r2.answer.split("\n").map((l) => `> ${l}`));
   }
   return L.join("\n") + "\n";
+}
+
+// lib/core/packs.ts
+var r = (rule) => rule;
+var PACKS = [
+  {
+    id: "support-bot",
+    name: "Support bot",
+    audience: "Customer-facing answers drawn from a help centre or policy",
+    description: "Strict on private data and invented policy, relaxed on style.",
+    rules: [
+      r({ id: "no-pii", type: "no_pii", blocking: true, name: "No personal data" }),
+      r({ id: "no-secrets", type: "no_secrets", blocking: true, name: "No API keys or private keys" }),
+      r({ id: "toxicity", type: "max_toxicity", value: 0, blocking: true }),
+      r({ id: "grounding", type: "min_grounding", value: 85, blocking: true }),
+      r({ id: "unsupported", type: "max_hallucination_risk", value: 10, blocking: true }),
+      r({ id: "length", type: "max_words", value: 150, blocking: false, name: "Keep answers under 150 words (warning)" })
+    ]
+  },
+  {
+    id: "rag-strict",
+    name: "RAG, strict",
+    audience: "Retrieval-augmented answers that must stay inside the retrieved passages",
+    description: "High grounding bar, citations required, consistency checked.",
+    rules: [
+      r({ id: "no-pii", type: "no_pii", blocking: true, name: "No personal data" }),
+      r({ id: "grounding", type: "min_grounding", value: 90, blocking: true }),
+      r({ id: "unsupported", type: "max_hallucination_risk", value: 5, blocking: true }),
+      r({ id: "citations", type: "has_citations", blocking: true }),
+      r({ id: "consistency", type: "min_consistency", value: 80, blocking: false, name: "Repeated samples agree (warning)" })
+    ]
+  },
+  {
+    id: "structured-output",
+    name: "Structured output",
+    audience: "Answers consumed by code: JSON from an extraction or classification step",
+    description: "Exact checks only. Nothing here depends on a model judge, so the result is identical on every run.",
+    rules: [
+      r({ id: "json", type: "valid_json", blocking: true }),
+      r({ id: "no-pii", type: "no_pii", blocking: true, name: "No personal data" }),
+      r({ id: "no-secrets", type: "no_secrets", blocking: true, name: "No API keys or private keys" }),
+      r({ id: "length", type: "max_words", value: 400, blocking: true })
+    ]
+  },
+  {
+    id: "safety-first",
+    name: "Safety first",
+    audience: "Open-ended assistants where tone and data leaks matter more than grounding",
+    description: "Blocks toxicity, personal data and secrets; warns on canned refusals.",
+    rules: [
+      r({ id: "toxicity", type: "max_toxicity", value: 0, blocking: true }),
+      r({ id: "no-pii", type: "no_pii", blocking: true, name: "No personal data" }),
+      r({ id: "no-secrets", type: "no_secrets", blocking: true, name: "No API keys or private keys" }),
+      r({ id: "no-canned", type: "not_contains", value: "as an AI language model", blocking: false, name: "No canned refusal phrase (warning)" })
+    ]
+  },
+  {
+    id: "try-it-lenient",
+    name: "Try it (warnings only)",
+    audience: "First experiments: see every signal without anything failing hard",
+    description: "Every rule is a warning, so the gate passes unless an exact secret or personal-data check trips.",
+    rules: [
+      r({ id: "no-secrets", type: "no_secrets", blocking: true, name: "No API keys or private keys" }),
+      r({ id: "grounding", type: "min_grounding", value: 70, blocking: false, name: "Grounding at least 70% (warning)" }),
+      r({ id: "unsupported", type: "max_hallucination_risk", value: 25, blocking: false, name: "Unsupported claims at most 25% (warning)" }),
+      r({ id: "toxicity", type: "max_toxicity", value: 1, blocking: false, name: "Toxicity at most mild (warning)" })
+    ]
+  }
+].map((p) => ({ ...p, rules: RulesSchema.parse(p.rules) }));
+var getPack = (id) => PACKS.find((p) => p.id === id);
+
+// cli/main.ts
+var import_yaml3 = __toESM(require_dist());
+
+// cli/mcp.ts
+var import_node_readline = require("node:readline");
+var SERVER = { name: "trustllm", version: "0.1.0" };
+var DEFAULT_PROTOCOL = "2024-11-05";
+var TOOLS = [
+  {
+    name: "evaluate",
+    description: "Check an LLM answer against guardrail rules and return PASS or FAIL with reasons. Demo mode (default) needs no key and uses offline heuristics. Live mode uses OPENAI_API_KEY or ANTHROPIC_API_KEY from the server environment.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "The question the answer responds to." },
+        context: { type: "string", description: "Source text the answer must be grounded in (recommended)." },
+        answer: { type: "string", description: "The answer to check. If omitted, models generate it." },
+        mode: { type: "string", enum: ["demo", "live"], default: "demo" },
+        provider: { type: "string", enum: ["openai", "anthropic"], description: "Live mode only." },
+        preset: { type: "string", description: `OpenAI-compatible preset: ${Object.keys(OPENAI_COMPATIBLE_PRESETS).join(", ")}` },
+        model: { type: "string", description: "Live mode: model to answer with and to judge." },
+        pack: { type: "string", description: `Guardrail pack id: ${PACKS.map((p) => p.id).join(", ")}` },
+        rules: { type: "array", description: "Custom guardrail rules (see list_rule_types). Overrides pack.", items: { type: "object" } }
+      },
+      required: ["prompt"]
+    }
+  },
+  { name: "list_packs", description: "List the ready-made guardrail packs.", inputSchema: { type: "object", properties: {} } },
+  { name: "list_rule_types", description: "List the guardrail rule types and their parameters.", inputSchema: { type: "object", properties: {} } }
+];
+var RULE_TYPES = [
+  { type: "no_pii", exact: true },
+  { type: "no_secrets", exact: true },
+  { type: "has_citations", exact: true },
+  { type: "valid_json", exact: true },
+  { type: "max_words", value: "integer", exact: true },
+  { type: "min_words", value: "integer", exact: true },
+  { type: "contains", value: "string", exact: true },
+  { type: "not_contains", value: "string", exact: true },
+  { type: "regex", pattern: "string", flags: "string", mustMatch: "boolean", exact: true },
+  { type: "min_grounding", value: "0-100", exact: false },
+  { type: "max_hallucination_risk", value: "0-100", exact: false },
+  { type: "max_toxicity", value: "0-3", exact: false },
+  { type: "min_consistency", value: "0-100", exact: false }
+];
+var EvalArgs = external_exports.object({
+  prompt: external_exports.string().min(1).max(4e3),
+  context: external_exports.string().max(12e3).optional(),
+  answer: external_exports.string().max(8e3).optional(),
+  mode: external_exports.enum(["demo", "live"]).default("demo"),
+  provider: external_exports.enum(["openai", "anthropic"]).default("openai"),
+  preset: external_exports.string().optional(),
+  model: external_exports.string().optional(),
+  pack: external_exports.string().optional(),
+  rules: RulesSchema.optional()
+});
+var textResult = (text, structured, isError = false) => ({
+  content: [{ type: "text", text }],
+  ...structured !== void 0 ? { structuredContent: structured } : {},
+  ...isError ? { isError: true } : {}
+});
+async function callTool(name, args, env) {
+  if (name === "list_packs") return textResult(JSON.stringify(PACKS.map(({ id, name: name2, audience, description, rules: rules2 }) => ({ id, name: name2, audience, description, rules: rules2 })), null, 2));
+  if (name === "list_rule_types") return textResult(JSON.stringify(RULE_TYPES, null, 2));
+  if (name !== "evaluate") throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32602 });
+  const a = EvalArgs.parse(args);
+  const pack = a.pack ? getPack(a.pack) : void 0;
+  if (a.pack && !pack) return textResult(`Unknown pack "${a.pack}". Available: ${PACKS.map((p) => p.id).join(", ")}`, void 0, true);
+  const rules = a.rules ?? pack?.rules ?? DEFAULT_RULES;
+  let models;
+  if (a.mode === "demo") models = [{ kind: "demo", model: "demo-careful" }];
+  else {
+    const key = env[a.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"];
+    const baseUrl = a.preset ? OPENAI_COMPATIBLE_PRESETS[a.preset]?.baseUrl : void 0;
+    if (!a.model) return textResult('Live mode needs a "model".', void 0, true);
+    models = [{ kind: a.provider, model: a.model, apiKey: key, baseUrl }];
+  }
+  const report = await evaluate([{ id: "mcp", prompt: a.prompt, context: a.context, answer: a.answer }], { mode: a.mode, models, samples: a.mode === "live" && a.answer === void 0 ? 2 : 1, rules });
+  return textResult(toMarkdown(report), report);
+}
+async function handleMcp(msg, env = {}) {
+  const id = msg.id ?? null;
+  const ok = (result) => ({ jsonrpc: "2.0", id, result });
+  const err = (code, message) => ({ jsonrpc: "2.0", id, error: { code, message } });
+  if (msg.method === void 0) return err(-32600, "Invalid request");
+  if (msg.id === void 0) return null;
+  try {
+    switch (msg.method) {
+      case "initialize":
+        return ok({ protocolVersion: typeof msg.params?.protocolVersion === "string" ? msg.params.protocolVersion : DEFAULT_PROTOCOL, capabilities: { tools: {} }, serverInfo: SERVER });
+      case "ping":
+        return ok({});
+      case "tools/list":
+        return ok({ tools: TOOLS });
+      case "tools/call": {
+        const p = msg.params ?? {};
+        return ok(await callTool(String(p.name), p.arguments ?? {}, env));
+      }
+      default:
+        return err(-32601, `Method not found: ${msg.method}`);
+    }
+  } catch (e) {
+    const issues = e.issues;
+    if (issues) return ok(textResult(`Invalid arguments: ${issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`, void 0, true));
+    const code = e.code;
+    return code ? err(code, e.message) : ok(textResult(`Evaluation failed: ${e instanceof Error ? e.message : String(e)}`, void 0, true));
+  }
+}
+function runMcp(env) {
+  return new Promise((resolve) => {
+    const rl = (0, import_node_readline.createInterface)({ input: process.stdin });
+    rl.on("line", async (line) => {
+      if (!line.trim()) return;
+      let msg;
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }) + "\n");
+        return;
+      }
+      const res = await handleMcp(msg, env);
+      if (res) process.stdout.write(JSON.stringify(res) + "\n");
+    });
+    rl.on("close", resolve);
+  });
 }
 
 // cli/main.ts
@@ -12234,24 +12452,43 @@ guardrails:
   - { id: unsupported, type: max_hallucination_risk, value: 15 }
   - { id: consistency, type: min_consistency, value: 70, blocking: false }
 `;
+function exampleConfig(packId) {
+  if (!packId) return EXAMPLE_CONFIG;
+  const pack = getPack(packId);
+  if (!pack) throw new Error(`Unknown pack "${packId}". Available: ${PACKS.map((p) => p.id).join(", ")}`);
+  const head = EXAMPLE_CONFIG.slice(0, EXAMPLE_CONFIG.indexOf("guardrails:"));
+  return `${head}# pack: ${pack.id} (${pack.name})
+${(0, import_yaml3.stringify)({ guardrails: pack.rules })}`;
+}
 var HELP = `trustllm - release gate for LLM answers
 
 Usage:
   trustllm run <config.yaml> [--json report.json] [--md report.md] [--quiet]
-  trustllm init [trustllm.yaml]
+  trustllm init [trustllm.yaml] [--pack ${PACKS.map((p) => p.id).join("|")}]
+  trustllm mcp                       start an MCP server on stdio (tools: evaluate, list_packs, list_rule_types)
 
 Exit codes: 0 gate passed, 1 gate failed, 2 error (bad config, provider failure).
 Keys are read from environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY or api_key_env) and are never written anywhere.
 `;
 async function main(argv, env = process.env) {
   const [cmd, ...rest] = argv;
+  if (cmd === "mcp") {
+    await runMcp(env);
+    return 0;
+  }
   if (cmd === "init") {
-    const file = rest[0] ?? "trustllm.yaml";
+    const file = rest[0] && !rest[0].startsWith("--") ? rest[0] : "trustllm.yaml";
     if ((0, import_node_fs.existsSync)(file)) {
       console.error(`${file} already exists; not overwriting.`);
       return 2;
     }
-    (0, import_node_fs.writeFileSync)(file, EXAMPLE_CONFIG);
+    const pi = rest.indexOf("--pack");
+    try {
+      (0, import_node_fs.writeFileSync)(file, exampleConfig(pi >= 0 ? rest[pi + 1] : void 0));
+    } catch (e) {
+      console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      return 2;
+    }
     console.log(`Wrote ${file}. Run: trustllm run ${file}`);
     return 0;
   }
@@ -12273,10 +12510,10 @@ async function main(argv, env = process.env) {
     if (env.GITHUB_STEP_SUMMARY) (0, import_node_fs.appendFileSync)(env.GITHUB_STEP_SUMMARY, toMarkdown(report));
     if (!rest.includes("--quiet")) {
       if (report.mode === "demo") console.log("DEMO MODE: offline heuristics, no model called. Not a measurement of any real model.\n");
-      for (const r of report.results) {
-        console.log(`${r.decision.padEnd(5)} ${r.caseId} / ${r.model}${r.overall !== null ? `  overall ${r.overall}` : ""}`);
-        if (r.error) console.log(`      error: ${r.error}`);
-        for (const c of r.checks) if (c.status === "fail") console.log(`      ${c.blocking ? "FAIL" : "WARN"} ${c.name}: ${c.reason}`);
+      for (const r2 of report.results) {
+        console.log(`${r2.decision.padEnd(5)} ${r2.caseId} / ${r2.model}${r2.overall !== null ? `  overall ${r2.overall}` : ""}`);
+        if (r2.error) console.log(`      error: ${r2.error}`);
+        for (const c of r2.checks) if (c.status === "fail") console.log(`      ${c.blocking ? "FAIL" : "WARN"} ${c.name}: ${c.reason}`);
       }
       const s = report.summary;
       console.log(`
@@ -12297,5 +12534,6 @@ if (process.argv[1] && /cli[\\/]main\.(ts|js)$|dist[\\/]cli\.cjs$/.test(process.
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   EXAMPLE_CONFIG,
+  exampleConfig,
   main
 });

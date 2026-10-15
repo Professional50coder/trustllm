@@ -1,0 +1,25 @@
+# TrustLLM
+
+> A release gate for LLM answers. Write guardrail rules, check answers against a source text, and get PASS or FAIL with plain-language reasons and suggested fixes. Browser app, CLI, GitHub Action and MCP server. MIT licensed, no account, no telemetry. Demo mode is offline and labelled; live mode uses the caller's own provider key.
+
+Important facts for agents:
+- Demo mode results are produced by deterministic stand-ins and word-matching heuristics. They are not measurements of any real model.
+- API keys are never stored or logged. The web API accepts a key per request and only provider presets, not arbitrary URLs.
+- Exit codes of the CLI and Action: 0 gate passed, 1 gate failed, 2 error.
+
+## Use it
+- [Web app](/dashboard): evaluate answers, edit guardrails, history, export, share links
+- [Documentation](/docs): first run, CLI, GitHub Action, score meanings, rule types, privacy, limits
+- Health and capabilities: GET /api/health
+- Evaluate: POST /api/evaluate with JSON {mode, cases[{prompt, context?, answer?}], models[{provider, model, apiKey?, preset?}], judge?, samples?, rules?}; returns a trustllm.report/v1 JSON report
+
+## Integrate
+- CLI: `node dist/cli.cjs run trustllm.yaml` (init, run, mcp). `init --pack support-bot|rag-strict|structured-output|safety-first|try-it-lenient`
+- MCP server: `node dist/cli.cjs mcp` (stdio). Tools: evaluate, list_packs, list_rule_types
+- GitHub Action: `uses: Professional50coder/trustllm@main` with `config:`; optional `comment: true` posts the report on pull requests
+
+## Source and evidence
+- [Repository](https://github.com/Professional50coder/trustllm)
+- [Methodology](https://github.com/Professional50coder/trustllm/blob/main/docs/methodology.md)
+- [Measured agreement with labels, with limits](https://github.com/Professional50coder/trustllm/blob/main/docs/evaluation.md)
+- [Market research and peers](https://github.com/Professional50coder/trustllm/blob/main/docs/market-research.md)

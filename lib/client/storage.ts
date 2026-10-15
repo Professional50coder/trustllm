@@ -61,6 +61,12 @@ export function addRun(report: Report): SavedRun[] {
   return next
 }
 
+export function updateRun(id: string, report: Report): SavedRun[] {
+  const next = loadHistory().map((r) => (r.id === id ? { ...r, report } : r))
+  write(HISTORY_KEY, next)
+  return next
+}
+
 export function deleteRun(id: string): SavedRun[] {
   const next = loadHistory().filter((r) => r.id !== id)
   write(HISTORY_KEY, next)

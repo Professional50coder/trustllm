@@ -1,12 +1,13 @@
-import type { CaseResult, EvalCase, Mode, ProviderSpec, Report, Signals } from './types'
+import type { CaseResult, EvalCase, Mode, ProviderSpec, Report, Signals, Usage } from './types'
 import { REPORT_SCHEMA } from './types'
 import { countWords } from './text'
 import { demoGenerate } from './demo'
 import { expressedConfidence, heuristicClaims, heuristicConsistency, heuristicToxicity, summarizeClaims } from './heuristics'
 import { DEFAULT_RULES, decide, evaluateRules, type Rule } from './guardrails'
-import { createProvider, redact, type Provider, type ProviderOptions } from './providers'
+import { createProvider, redact, type ProviderOptions } from './providers'
 import { judgeClaims, judgeConsistency } from './judge'
 import { explainResult, recommend } from './advice'
+import { summarize } from './approval'
 
 export interface EvaluateOptions {
   mode: Mode
@@ -37,8 +38,17 @@ export function overallScore(s: Signals): number | null {
   return clamp(parts.reduce((a, [v, x]) => a + v * x, 0) / w)
 }
 
-async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | null, opts: EvaluateOptions, judge: Provider | null): Promise<CaseResult> {
+async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | null, opts: EvaluateOptions): Promise<CaseResult> {
   const t0 = Date.now()
+  const usage: Usage = { calls: 0, inputTokens: null, outputTokens: null }
+  const popts: ProviderOptions = {
+    ...opts.providerOptions,
+    onUsage: (u) => {
+      usage.calls++
+      if (u.input !== null) usage.inputTokens = (usage.inputTokens ?? 0) + u.input
+      if (u.output !== null) usage.outputTokens = (usage.outputTokens ?? 0) + u.output
+    },
+  }
   const rules = opts.rules ?? DEFAULT_RULES
   const samples = Math.max(1, Math.min(opts.samples ?? 1, 5))
   const modelName = model ? model.model : PROVIDED_ANSWER
@@ -52,7 +62,7 @@ async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | nu
     if (answer === undefined) {
       if (!model) throw new Error('No model given and no answer provided.')
       if (live) {
-        const p = createProvider(model, opts.providerOptions)
+        const p = createProvider(model, popts)
         const user = c.context ? `Context:\n${c.context}\n\nQuestion: ${c.prompt}` : c.prompt
         answer = await p.complete({ user, temperature: 0.2, maxTokens: 800 })
         // SelfCheckGPT draws extra samples at high temperature so that unstable claims diverge.
@@ -67,7 +77,9 @@ async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | nu
     let toxicity: Signals['toxicity']
     let consistency: number | null
     if (live) {
-      if (!judge) throw new Error('No judge available.')
+      const judgeSpec = opts.judge ?? model ?? opts.models[0]
+      if (!judgeSpec) throw new Error('No judge available.')
+      const judge = createProvider(judgeSpec, popts)
       const j = await judgeClaims(judge, c.prompt, answer, c.context)
       claims = j.claims
       toxicity = j.toxicity
@@ -88,38 +100,24 @@ async function evaluateOne(c: EvalCase, caseId: string, model: ProviderSpec | nu
     }
     const checks = evaluateRules(rules, answer, signals)
     const decision = decide(checks)
-    return { ...base, answer, signals, claims, checks, decision, overall: overallScore(signals), ...explainResult({ decision, checks, claims, mode: opts.mode }), latencyMs: Date.now() - t0 }
+    return { ...base, answer, signals, claims, checks, decision, overall: overallScore(signals), ...explainResult({ decision, checks, claims, mode: opts.mode }), latencyMs: Date.now() - t0, usage }
   } catch (e) {
     const key = model?.apiKey ?? opts.judge?.apiKey
     const msg = redact(e instanceof Error ? e.message : String(e), key)
     const empty: Signals = { grounding: null, hallucinationRisk: null, expressedConfidence: 0, toxicity: 0, consistency: null, answerWords: 0 }
-    return { ...base, answer: '', signals: empty, claims: [], checks: [], decision: 'ERROR', overall: null, error: msg, ...explainResult({ decision: 'ERROR', checks: [], claims: [], error: msg, mode: opts.mode }), latencyMs: Date.now() - t0 }
+    return { ...base, answer: '', signals: empty, claims: [], checks: [], decision: 'ERROR', overall: null, error: msg, ...explainResult({ decision: 'ERROR', checks: [], claims: [], error: msg, mode: opts.mode }), latencyMs: Date.now() - t0, usage }
   }
 }
 
 export async function evaluate(cases: EvalCase[], opts: EvaluateOptions): Promise<Report> {
   const rules = opts.rules ?? DEFAULT_RULES
-  let judge: Provider | null = null
-  if (opts.mode === 'live') {
-    const spec = opts.judge ?? opts.models[0]
-    if (spec) {
-      try {
-        judge = createProvider(spec, opts.providerOptions)
-      } catch {
-        judge = null // surfaces as a per-result ERROR with a clear message
-      }
-    }
-  }
   const jobs: Promise<CaseResult>[] = []
   cases.forEach((c, i) => {
     const id = c.id ?? `case-${i + 1}`
-    if (c.answer !== undefined) jobs.push(evaluateOne(c, id, null, opts, judge))
-    else for (const m of opts.models) jobs.push(evaluateOne(c, id, m, opts, judge))
+    if (c.answer !== undefined) jobs.push(evaluateOne(c, id, null, opts))
+    else for (const m of opts.models) jobs.push(evaluateOne(c, id, m, opts))
   })
   const results = await Promise.all(jobs)
-  const passed = results.filter((r) => r.decision === 'PASS').length
-  const failed = results.filter((r) => r.decision === 'FAIL').length
-  const errors = results.filter((r) => r.decision === 'ERROR').length
   const live = opts.mode === 'live'
   const judgeName = live ? (opts.judge ?? opts.models[0])?.model ?? 'unknown' : OFFLINE_JUDGE
   const notes = live
@@ -133,7 +131,7 @@ export async function evaluate(cases: EvalCase[], opts: EvaluateOptions): Promis
     samples: Math.max(1, Math.min(opts.samples ?? 1, 5)),
     guardrails: rules,
     results,
-    summary: { total: results.length, passed, failed, errors, gate: failed === 0 && errors === 0 && results.length > 0 ? 'PASS' : 'FAIL' },
+    summary: summarize(results),
     recommendation: recommend(results, opts.mode),
     notes,
   }

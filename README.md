@@ -13,7 +13,7 @@ Teams change a prompt or swap a model, eyeball a few answers and ship. Evaluatio
 - A CLI and GitHub Action whose exit code is the gate, and a browser app for reviewers who do not write code.
 - No account, no telemetry, no database. Keys are never stored or logged.
 
-Research behind this positioning, with sources: [docs/market-research.md](./docs/market-research.md). How scoring works and why: [docs/methodology.md](./docs/methodology.md). How well it agrees with labels, honestly: [docs/evaluation.md](./docs/evaluation.md).
+Design patterns studied (patterns only, nothing copied): [docs/design-notes.md](./docs/design-notes.md). Agent-readable summary: [`/llms.txt`](./public/llms.txt). Research behind this positioning, with sources: [docs/market-research.md](./docs/market-research.md). How scoring works and why: [docs/methodology.md](./docs/methodology.md). How well it agrees with labels, honestly: [docs/evaluation.md](./docs/evaluation.md).
 
 ## Quick start
 
@@ -47,6 +47,12 @@ OPENAI_API_KEY=... node dist/cli.cjs run trustllm.yaml   # live mode
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # live mode only
 ```
 
+Optional: post the report on pull requests with `comment: true` (give the job `permissions: pull-requests: write`).
+
+**MCP server (for agents).** `node dist/cli.cjs mcp` serves the gate over stdio with the tools `evaluate`, `list_packs` and `list_rule_types`. Example client entry: `{ "command": "node", "args": ["dist/cli.cjs", "mcp"] }`. Live mode reads `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` from the server environment.
+
+**Start from a pack.** `node dist/cli.cjs init --pack support-bot` (also `rag-strict`, `structured-output`, `safety-first`, `try-it-lenient`), or pick one on the Guardrails page.
+
 `trustllm.yaml` can be generated from the web app (**Download trustllm.yaml for CI**). Minimal example:
 
 ```yaml
@@ -73,6 +79,10 @@ guardrails:
 - **Release gate** per answer: PASS or FAIL, the rules that decided it, and an overall recommendation for the run (ship, fix, or block).
 - **Explanations and suggested fixes** derived from the rules that actually failed, plus the claims to review.
 - **Six signals** with plain-language help on each: grounding, unsupported claims, consistency, toxicity, expressed confidence, overall.
+- **Guardrail packs**: ready-made rule sets (support bot, strict RAG, structured output, safety first, warnings-only) as a starting point.
+- **Human approval** on a FAIL, with a required reason, recorded in the report and history. The original failure stays on record.
+- **Usage per result**: provider calls, tokens as reported by the provider, and time. No dollar estimates, because prices change.
+- **Shareable report links**: the report is compressed into the URL fragment, so nothing is uploaded or stored. Do not share a link for confidential content.
 - **Side-by-side comparison** of up to four models on the same question.
 - **Exports**: JSON (`trustllm.report/v1`), Markdown, CSV.
 - **Local history** in your browser, no server storage.
@@ -111,7 +121,9 @@ Your key lives in the page's memory and is sent only with the evaluation request
 |---|---|
 | Unit and integration tests (vitest) | `pnpm test`: 60+ tests covering the engine, adapters with a fake fetch, API routes, CLI exit codes, labelled sets |
 | Type check, lint, production build | `pnpm typecheck`, `pnpm lint`, `pnpm build`; all run in GitHub Actions on every push |
-| Docker image | built in CI (see workflow); not run locally by the author |
+| Docker image | built and called in CI (`docker` job); not run locally by the author |
+| GitHub Action | exercised in CI against `examples/trustllm.yaml` (`action` job). The PR-comment path (`comment: true`) has **not** been run against a real pull request |
+| MCP server | tested at the JSON-RPC level and by piping messages to the bundled CLI. **Not tested with a real MCP client** |
 | Provider adapters against the real APIs | **Not exercised with a real key during development.** They are tested against scripted fake responses that follow the documented request and response shapes. First real-key run is yours; please open an issue if a provider rejects a request. |
 | LLM-judge agreement with labels | **Not measured** (needs a key). Run `pnpm evalset --live <openai|anthropic> <model>`. |
 | Offline scorer agreement | Measured, see below |
@@ -140,6 +152,7 @@ Offline (demo-mode) scorer versus labels, details and caveats in [docs/evaluatio
 | `pnpm typecheck` / `pnpm lint` | tsc, eslint |
 | `pnpm build:cli` | rebuilds `dist/cli.cjs` (CI fails if it is stale) |
 | `pnpm evalset` | agreement with labelled sets |
+| `node dist/cli.cjs mcp` | MCP server on stdio |
 
 ## Deploy
 

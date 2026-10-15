@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Navigation } from '@/components/navigation'
+import { SiteNav } from '@/components/site-nav'
+import { SiteFooter } from '@/components/site-footer'
 import { SIGNAL_HELP } from '@/lib/core/explain'
 
 export const metadata: Metadata = { title: 'Docs', description: 'Get started with TrustLLM: browser, CLI and GitHub Action, what each score means, and how keys are handled.' }
@@ -26,10 +27,10 @@ const CODE = 'overflow-x-auto rounded-lg border border-border bg-card p-4 text-x
 export default function DocsPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
+      <SiteNav />
       <main id="main" className="container mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-3xl font-bold text-foreground">Documentation</h1>
-        <p className={`${P} mt-2`}>On this page: <a className="underline" href="#browser">browser</a>, <a className="underline" href="#cli">command line</a>, <a className="underline" href="#action">GitHub Action</a>, <a className="underline" href="#scores">what the scores mean</a>, <a className="underline" href="#rules">rules</a>, <a className="underline" href="#privacy">privacy</a>, <a className="underline" href="#limits">limits</a>.</p>
+        <p className={`${P} mt-2`}>On this page: <a className="underline" href="#browser">browser</a>, <a className="underline" href="#cli">command line</a>, <a className="underline" href="#action">GitHub Action</a>, <a className="underline" href="#scores">what the scores mean</a>, <a className="underline" href="#rules">rules</a>, <a className="underline" href="#mcp">MCP</a>, <a className="underline" href="#privacy">privacy</a>, <a className="underline" href="#limits">limits</a>.</p>
 
         <h2 id="browser" className={H2}>First run in the browser</h2>
         <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
@@ -58,6 +59,18 @@ OPENAI_API_KEY=... node dist/cli.cjs run trustllm.yaml`}</code></pre>
   env:
     OPENAI_API_KEY: \${{ secrets.OPENAI_API_KEY }}`}</code></pre>
         <p className={`${P} mt-2`}>The job fails when the gate fails and a Markdown report is written to the job summary.</p>
+
+        <p className={`${P} mt-2`}>Add <code>comment: true</code> (and <code>permissions: pull-requests: write</code> on the job) to post the report on the pull request.</p>
+
+        <h2 id="mcp" className={H2}>MCP server and agents</h2>
+        <p className={P}>Agents can call the gate as a tool. Start the server with <code>node dist/cli.cjs mcp</code> (stdio). Tools: <code>evaluate</code>, <code>list_packs</code>, <code>list_rule_types</code>. A summary for agents is at <a className="underline" href="/llms.txt">/llms.txt</a>. The server speaks a minimal subset of the protocol and has been tested at the message level, not with every client.</p>
+
+        <h2 id="packs" className={H2}>Packs, approvals and sharing</h2>
+        <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+          <li><strong className="text-foreground">Packs</strong>: on <Link href="/guardrails" className="underline">Guardrails</Link>, start from support bot, strict RAG, structured output, safety first, or warnings-only. In the CLI: <code>init --pack support-bot</code>.</li>
+          <li><strong className="text-foreground">Approve anyway</strong>: on a failed answer, record a human override with a reason. The failure stays in the report; the gate outcome becomes &ldquo;released with human approval&rdquo;.</li>
+          <li><strong className="text-foreground">Copy share link</strong>: the whole report is packed into the link after the <code>#</code>, which browsers never send to a server. Anyone with the link sees the report; do not share it for confidential content.</li>
+        </ul>
 
         <h2 id="scores" className={H2}>What the scores mean</h2>
         <dl className="space-y-4">
@@ -100,6 +113,7 @@ OPENAI_API_KEY=... node dist/cli.cjs run trustllm.yaml`}</code></pre>
           <li>Measured agreement with labelled examples and its limits are in <a className="underline" href="https://github.com/Professional50coder/trustllm/blob/main/docs/evaluation.md">docs/evaluation.md</a>.</li>
         </ul>
       </main>
+      <SiteFooter />
     </div>
   )
 }

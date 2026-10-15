@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'node:fs
 import { parseConfig } from '../lib/core/config'
 import { evaluate } from '../lib/core/evaluate'
 import { toJson, toMarkdown } from '../lib/core/report'
+import { PACKS, getPack } from '../lib/core/packs'
+import { stringify } from 'yaml'
+import { runMcp } from './mcp'
 
 export const EXAMPLE_CONFIG = `# trustllm.yaml  - run with: node dist/cli.cjs run trustllm.yaml
 # mode: demo works offline with no keys. Switch to "live" and add models + an API key env var.
@@ -33,11 +36,22 @@ guardrails:
   - { id: consistency, type: min_consistency, value: 70, blocking: false }
 `
 
+/** Example config with the guardrails section swapped for a named pack. */
+export function exampleConfig(packId?: string): string {
+  if (!packId) return EXAMPLE_CONFIG
+  const pack = getPack(packId)
+  if (!pack) throw new Error(`Unknown pack "${packId}". Available: ${PACKS.map((p) => p.id).join(', ')}`)
+  const head = EXAMPLE_CONFIG.slice(0, EXAMPLE_CONFIG.indexOf('guardrails:'))
+  return `${head}# pack: ${pack.id} (${pack.name})
+${stringify({ guardrails: pack.rules })}`
+}
+
 const HELP = `trustllm - release gate for LLM answers
 
 Usage:
   trustllm run <config.yaml> [--json report.json] [--md report.md] [--quiet]
-  trustllm init [trustllm.yaml]
+  trustllm init [trustllm.yaml] [--pack ${PACKS.map((p) => p.id).join('|')}]
+  trustllm mcp                       start an MCP server on stdio (tools: evaluate, list_packs, list_rule_types)
 
 Exit codes: 0 gate passed, 1 gate failed, 2 error (bad config, provider failure).
 Keys are read from environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY or api_key_env) and are never written anywhere.
@@ -45,13 +59,23 @@ Keys are read from environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY or a
 
 export async function main(argv: string[], env: Record<string, string | undefined> = process.env): Promise<number> {
   const [cmd, ...rest] = argv
+  if (cmd === 'mcp') {
+    await runMcp(env)
+    return 0
+  }
   if (cmd === 'init') {
-    const file = rest[0] ?? 'trustllm.yaml'
+    const file = rest[0] && !rest[0].startsWith('--') ? rest[0] : 'trustllm.yaml'
     if (existsSync(file)) {
       console.error(`${file} already exists; not overwriting.`)
       return 2
     }
-    writeFileSync(file, EXAMPLE_CONFIG)
+    const pi = rest.indexOf('--pack')
+    try {
+      writeFileSync(file, exampleConfig(pi >= 0 ? rest[pi + 1] : undefined))
+    } catch (e) {
+      console.error(`Error: ${e instanceof Error ? e.message : String(e)}`)
+      return 2
+    }
     console.log(`Wrote ${file}. Run: trustllm run ${file}`)
     return 0
   }

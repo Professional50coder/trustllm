@@ -24,6 +24,8 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 export interface ProviderOptions {
   fetch?: FetchLike
   timeoutMs?: number
+  /** Called after each successful completion with token counts when the provider reports them. */
+  onUsage?: (u: { input: number | null; output: number | null }) => void
 }
 
 /** Known OpenAI-compatible endpoints. The server only accepts these presets, never a free-form URL. */
@@ -91,8 +93,10 @@ export function createOpenAICompatible(spec: ProviderSpec, opts: ProviderOptions
       for (let attempt = 0; attempt < 3; attempt++) {
         const r = await post(`${base}/chat/completions`, headers, body, spec.apiKey, opts)
         if (r.ok) {
-          const text = JSON.parse(r.text)?.choices?.[0]?.message?.content
+          const j = JSON.parse(r.text)
+          const text = j?.choices?.[0]?.message?.content
           if (typeof text !== 'string') throw new ProviderError('Provider returned no text.')
+          opts.onUsage?.({ input: j?.usage?.prompt_tokens ?? null, output: j?.usage?.completion_tokens ?? null })
           return text
         }
         // Some newer models reject max_tokens or a custom temperature; adapt once per problem.
@@ -127,9 +131,11 @@ export function createAnthropic(spec: ProviderSpec, opts: ProviderOptions = {}):
       for (let attempt = 0; attempt < 2; attempt++) {
         const r = await post('https://api.anthropic.com/v1/messages', headers, body, spec.apiKey, opts)
         if (r.ok) {
-          const blocks = JSON.parse(r.text)?.content
+          const j = JSON.parse(r.text)
+          const blocks = j?.content
           const text = Array.isArray(blocks) ? blocks.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('') : ''
           if (!text) throw new ProviderError('Provider returned no text.')
+          opts.onUsage?.({ input: j?.usage?.input_tokens ?? null, output: j?.usage?.output_tokens ?? null })
           return text
         }
         if (r.status === 400 && /temperature/i.test(r.text) && 'temperature' in body) {

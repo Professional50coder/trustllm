@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Navigation } from '@/components/navigation'
+import { AppShell } from '@/components/app-shell'
 import { ResultCard, ModeBadge, DecisionBadge } from '@/components/result-card'
 import { ExportButtons } from '@/components/export-buttons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Trash2 } from 'lucide-react'
-import { clearHistory, deleteRun, download, loadHistory, type SavedRun } from '@/lib/client/storage'
+import { approveResult, revokeApproval } from '@/lib/core/approval'
+import { clearHistory, deleteRun, updateRun, download, loadHistory, type SavedRun } from '@/lib/client/storage'
 
 export default function HistoryPage() {
   const [runs, setRuns] = useState<SavedRun[]>([])
@@ -35,15 +36,7 @@ export default function HistoryPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main id="main" className="container mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">History</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your saved evaluations: when it ran, which rules applied, the decision and the reasons. Stored only in this browser (the newest 30 are kept). API keys are never saved. Export a run to attach it to a release ticket.
-          </p>
-        </div>
+    <AppShell title="History" description="Your saved evaluations: when it ran, the decision and the reasons. Stored only in this browser (newest 30). API keys are never saved. Export a run to attach it to a release ticket.">
 
         {!ready ? (
           <Card className="p-6 text-sm text-muted-foreground">Loading...</Card>
@@ -90,7 +83,7 @@ export default function HistoryPage() {
                     {open === r.id && (
                       <div className="space-y-4 border-t border-border p-4">
                         <ExportButtons report={r.report} />
-                        <div className="grid gap-4 md:grid-cols-2">{r.report.results.map((x, i) => <ResultCard key={i} r={x} />)}</div>
+                        <div className="grid gap-4 md:grid-cols-2">{r.report.results.map((x, i) => <ResultCard key={i} r={x} onApprove={(reason) => setRuns(updateRun(r.id, approveResult(r.report, i, reason)))} onRevoke={() => setRuns(updateRun(r.id, revokeApproval(r.report, i)))} />)}</div>
                       </div>
                     )}
                   </Card>
@@ -99,7 +92,6 @@ export default function HistoryPage() {
             </ul>
           </>
         )}
-      </main>
-    </div>
+    </AppShell>
   )
 }

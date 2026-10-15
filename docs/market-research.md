@@ -62,3 +62,32 @@ Evaluation data used for the agreement test is documented in [evaluation.md](./e
 ## Product consequences
 
 Prioritised in this order: (1) shared evaluation engine, (2) guardrail config and deterministic checks, (3) CLI and GitHub Action, (4) web UI on the same engine with export and local history, (5) labelled agreement test, (6) docs for a first-time user, (7) deploy and verify.
+
+## Peers and lessons (Product Hunt, October 2026)
+
+Method and honesty note: search and page-fetch tools were used read-only, with no sign-up, log-in or personal data. Some listed products (Tiden, Polylane Impact Analysis, Kerno 1.0, CodeCrab, Actually Asked, ReSO AI, Basedash connector gallery) could not be confirmed or read through those tools, so they are not characterised here; closer equivalents that could be found are used instead. Comment themes below come only from pages that were actually read.
+
+| Peer | What it does | What users say or ask (where readable) | Borrow | Avoid |
+|---|---|---|---|---|
+| [withHuman](https://mcpservers.org/servers/withhuman-ai) | Open-source human-approval layer: an agent pauses at a consequential action until a reviewer approves; queue, audit trail, web UI, self-hostable; open protocol (AAP); MCP server and SDK integrations. | Page not readable beyond the listing summary. | Human sign-off with an audit trail on risky outcomes; MCP integration; open source plus self-host framing. | Building a hosted queue and notification system: out of scope and needs a backend. |
+| Plumb and Yoetz (as listed on [hunted.space](https://hunted.space/product/plumb) and Product Hunt; the closest findable equivalents to "intent verification for coding agents") | Verify an agent's claim of completion independently of the agent; Plumb is deterministic, makes no model calls, and returns PASS, FAIL, BLOCK or "uncertain". | Listing text only. | Deterministic-first verification, and an explicit "uncertain / skipped" outcome instead of a false pass. TrustLLM already does this with `skip`. | Claiming to verify intent: TrustLLM verifies rules against a source text, not intent. |
+| [Inferock Bench](https://www.producthunt.com/p/inferock/inferock-bench) | Local proxy that records per-call tokens, failures and retries and produces a receipt. Open source (FSL-1.1-Apache-2.0). | Commenters liked that keys and data stay local, that setup is two settings, and that it verifies a bill rather than replacing it. Questions: separating real failures from hidden tokens; "a silently wrong value looks like success". | Show usage per run (calls, tokens, latency) so cost is visible; keys-stay-local messaging. | Estimating money from a hard-coded price table: prices change, so TrustLLM shows calls, tokens and time, not dollars. |
+| RaptorCI, MergAI, Kryon AI, AI Risk Manager (PR risk tools found via [Product Hunt alternatives](https://www.producthunt.com/products/raptorci/alternatives) and [hunted.space](https://hunted.space/product/mergai)) | Score pull-request risk, block unsafe merges, post a report as a PR comment; AI Risk Manager is a deterministic-by-default CLI with a merge decision. | Listing text only. | A PR comment with the gate summary; merge decision as a first-class output; deterministic default. | Opaque risk scores with no stated rule behind them. |
+| [Kerno](https://www.producthunt.com/products/kerno) | Generates and runs tests in the IDE or CLI, with audit reports. | Listing text only. | Audit report as a deliverable. | None specific. |
+| [Navige](https://navige.ai) (studied in a browser, see [design-notes.md](./design-notes.md)) | Governs agent cost; free watch tier, savings-share pricing explained with a worked example. | Not readable (account wall). | Lead with what is free; state exactly when money changes hands; FAQ with real objections. | Unverifiable headline numbers. |
+
+Cross-cutting patterns seen on Product Hunt this month: open source with self-hosting as a trust signal, MCP servers as a distribution channel for agent tools, local-first tools that keep keys on the user's machine, example galleries before commitment, `npx`-style one-line start, and launch-ready pages. A product-hunting thread asked whether anyone has actually disputed a provider bill and received a credit, a reminder that trust claims need receipts.
+
+### What was implemented, ranked by user value over effort
+
+| Rank | Idea | Value | Effort | Status |
+|---|---|---|---|---|
+| 1 | Guardrail packs gallery: ready-made rule sets to start from (support bot, RAG, structured output, safety-first) | High: removes the blank-page problem | Low | Implemented: Guardrails page and CLI `init --pack` |
+| 2 | Human approval on a FAIL, with reason, recorded in the report and history | High for the reviewer persona; matches the withHuman lesson without a server | Low | Implemented (local, per result, recorded in exports) |
+| 3 | Shareable report links (report encoded in the URL fragment, never sent to a server) | High: forward a result without accounts | Low | Implemented: `/report` page |
+| 4 | Usage and latency per run (calls, tokens where the provider returns them, time) | Medium: cost visibility without price tables | Low | Implemented |
+| 5 | PR comment with the gate summary from the GitHub Action | High for the developer persona | Medium | Implemented in `action.yml` (`comment: true`); documented as not exercised against a real pull request |
+| 6 | MCP server exposing `evaluate`, `list_rule_types` and `list_packs` tools | Medium-high: lets agents call the gate | Medium | Implemented: `node dist/cli.cjs mcp` (stdio, minimal protocol), tested at the protocol level only, not against a real MCP client |
+| 7 | `llms.txt` and agent-readable docs | Medium, near-zero effort | Low | Implemented |
+| - | Hosted approval queue and notifications | Medium | High, needs backend and auth | Not built |
+| - | Dollar cost estimates | Medium | Medium and drifts as prices change | Not built, by choice |

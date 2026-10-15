@@ -1,0 +1,23 @@
+# Example for the GitHub Action self-test and for copying. Demo mode: no keys, offline.
+mode: demo
+samples: 3
+models:
+  - { provider: demo, model: demo-careful }
+cases:
+  - id: refund-policy
+    prompt: How long do customers have to request a refund, and where is the money sent?
+    context: >
+      Customers may request a refund within 30 days of purchase. Approved refunds are
+      issued to the original payment method within 5 business days. Digital gift cards
+      are not refundable.
+  - id: rate-limit
+    prompt: What are the API rate limits for the free plan?
+    context: >
+      The free plan allows 60 requests per minute and 5000 requests per day. When a limit
+      is exceeded the API returns HTTP 429 and a Retry-After header.
+guardrails:
+  - { id: no-pii, type: no_pii }
+  - { id: no-secrets, type: no_secrets }
+  - { id: toxicity, type: max_toxicity, value: 0 }
+  - { id: grounding, type: min_grounding, value: 80 }
+  - { id: unsupported, type: max_hallucination_risk, value: 15 }

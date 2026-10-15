@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Navigation } from '@/components/navigation'
+import { AppShell } from '@/components/app-shell'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Trash2, RotateCcw, Download, Upload } from 'lucide-react'
+import { PACKS } from '@/lib/core/packs'
 import { DEFAULT_RULES, JUDGE_TYPES, RulesSchema, parseRules, ruleName, rulesToYaml, type Rule } from '@/lib/core/guardrails'
 import { loadRules, resetRules, saveRules, download } from '@/lib/client/storage'
 
@@ -70,17 +71,26 @@ export default function GuardrailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main id="main" className="container mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Guardrails</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            These written rules decide PASS or FAIL. A broken <strong>blocking</strong> rule fails the gate; a non-blocking rule only warns. Rules are saved in this browser and used by{' '}
-            <Link href="/dashboard" className="underline">Evaluate</Link>. Export them as YAML to enforce the same rules in CI.
-          </p>
-        </div>
+    <AppShell title="Guardrails" description="These written rules decide PASS or FAIL. A broken blocking rule fails the gate; a non-blocking rule only warns. Saved in this browser and used by Evaluate. Export as YAML to enforce the same rules in CI.">
 
+        <section aria-labelledby="packs-h" className="space-y-3">
+          <h2 id="packs-h" className="font-semibold text-foreground">Start from a pack</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {PACKS.map((p) => (
+              <Card key={p.id} className="flex flex-col justify-between gap-3 border-border bg-card p-4 shadow-card">
+                <div>
+                  <h3 className="font-medium text-foreground">{p.name}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{p.audience}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{p.description} {p.rules.length} rules.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => { commit(p.rules); setMsg({ ok: true, text: `Loaded the "${p.name}" pack (${p.rules.length} rules). Edit anything below.` }) }}>Use this pack</Button>
+              </Card>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Packs are starting points with defaults chosen by the author, not calibrated thresholds. Check them against your own examples.</p>
+        </section>
+
+        <h2 className="font-semibold text-foreground">Active rules</h2>
         <Card className="divide-y divide-border border-border bg-card" aria-label="Active rules">
           {!ready ? (
             <div className="p-6 text-sm text-muted-foreground">Loading rules...</div>
@@ -163,8 +173,7 @@ export default function GuardrailsPage() {
           <Button variant="outline" className="gap-2" onClick={importYaml} disabled={!yaml.trim()}><Upload className="h-4 w-4" /> Import</Button>
         </Card>
 
-        {msg && <div role={msg.ok ? 'status' : 'alert'} className={`rounded-md border p-3 text-sm text-foreground ${msg.ok ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>{msg.text}</div>}
-      </main>
-    </div>
+        {msg && <div role={msg.ok ? 'status' : 'alert'} className={`rounded-md border p-3 text-sm text-foreground ${msg.ok ? 'border-success/40 bg-success-soft' : 'border-danger/40 bg-danger-soft'}`}>{msg.text}</div>}
+    </AppShell>
   )
 }

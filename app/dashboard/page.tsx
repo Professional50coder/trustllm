@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Navigation } from '@/components/navigation'
+import { AppShell } from '@/components/app-shell'
 import { ResultCard, ModeBadge } from '@/components/result-card'
 import { ExportButtons } from '@/components/export-buttons'
 import { Card } from '@/components/ui/card'
@@ -17,7 +17,8 @@ import { DEMO_MODELS } from '@/lib/core/demo'
 import { OPENAI_COMPATIBLE_PRESETS } from '@/lib/core/providers'
 import { DEFAULT_RULES, ruleName, type Rule } from '@/lib/core/guardrails'
 import type { Report } from '@/lib/core/types'
-import { addRun, DEFAULT_PREFS, download, loadPrefs, loadRules, savePrefs, type Prefs } from '@/lib/client/storage'
+import { approveResult, revokeApproval } from '@/lib/core/approval'
+import { addRun, updateRun, DEFAULT_PREFS, download, loadPrefs, loadRules, savePrefs, type Prefs } from '@/lib/client/storage'
 import { buildConfigYaml } from '@/lib/client/config-export'
 
 const PROVIDERS = [
@@ -45,6 +46,7 @@ export default function EvaluatePage() {
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<Report | null>(null)
   const resultsRef = useRef<HTMLElement | null>(null)
+  const runId = useRef<string | null>(null)
 
   useEffect(() => {
     if (report) resultsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
@@ -93,12 +95,17 @@ export default function EvaluatePage() {
       const data = await res.json().catch(() => null)
       if (!res.ok || !data) throw new Error(data?.error ?? `The server returned ${res.status}.`)
       setReport(data as Report)
-      if (prefs.saveHistory) addRun(data as Report)
+      runId.current = prefs.saveHistory ? addRun(data as Report)[0]?.id ?? null : null
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const changeReport = (next: Report) => {
+    setReport(next)
+    if (runId.current) updateRun(runId.current, next)
   }
 
   const downloadConfig = () => {
@@ -115,15 +122,7 @@ export default function EvaluatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main id="main" className="container mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Evaluate an answer</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Give a question and the source text the answer must stick to. TrustLLM scores each answer against your guardrail rules and returns PASS or FAIL with reasons.
-          </p>
-        </div>
+    <AppShell title="Evaluate" description="Give a question and the source text the answer must stick to. TrustLLM checks each answer against your guardrail rules and returns PASS or FAIL with reasons.">
 
         {report === null && !loading && (
           <Card className="border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
@@ -208,7 +207,7 @@ export default function EvaluatePage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="judge">Judge model <span className="text-muted-foreground">(optional)</span></Label>
                   <Input id="judge" value={prefs.judgeModel} onChange={(e) => update({ judgeModel: e.target.value })} placeholder={`defaults to ${liveModels[0] ?? 'the first model'}`} />
-                  {judgeSameAsCandidate && <p className="text-xs text-amber-600 dark:text-amber-400">The judge is the same model being judged. LLM judges tend to favour their own output. A different judge model gives a fairer score.</p>}
+                  {judgeSameAsCandidate && <p className="text-xs text-warn">The judge is the same model being judged. LLM judges tend to favour their own output. A different judge model gives a fairer score.</p>}
                 </div>
               </div>
             )}
@@ -237,16 +236,16 @@ export default function EvaluatePage() {
         </div>
 
         {error && (
-          <div role="alert" className="rounded-md border border-red-500/40 bg-red-500/10 p-4 text-sm text-foreground">
+          <div role="alert" className="rounded-md border border-danger/40 bg-danger-soft p-4 text-sm text-foreground">
             <strong>Could not run the evaluation.</strong> {error}
           </div>
         )}
 
         {report && (
           <section ref={resultsRef} className="scroll-mt-20 space-y-4" aria-live="polite">
-            <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 ${report.summary.gate === 'PASS' ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-red-500/40 bg-red-500/10'}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 ${report.summary.gate === 'PASS' ? 'border-success/40 bg-success-soft' : 'border-danger/40 bg-danger-soft'}`}>
               <div className="flex items-center gap-3">
-                {report.summary.gate === 'PASS' ? <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /> : <ShieldAlert className="h-6 w-6 text-red-600 dark:text-red-400" />}
+                {report.summary.gate === 'PASS' ? <ShieldCheck className="h-6 w-6 text-success" /> : <ShieldAlert className="h-6 w-6 text-danger" />}
                 <div>
                   <div className="text-lg font-semibold text-foreground" data-testid="gate">Release gate: {report.summary.gate} <span className="font-normal text-muted-foreground">({report.summary.passed} passed, {report.summary.failed} failed{report.summary.errors > 0 && `, ${report.summary.errors} errors`})</span></div>
                   <div className="text-sm text-foreground" data-testid="recommendation"><strong>{report.recommendation.headline}.</strong> {report.recommendation.detail}</div>
@@ -255,7 +254,7 @@ export default function EvaluatePage() {
               <ModeBadge mode={report.mode} />
             </div>
             {report.notes.map((n, i) => <p key={i} className="text-xs text-muted-foreground">{n}</p>)}
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{report.results.map((r, i) => <ResultCard key={i} r={r} />)}</div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{report.results.map((r, i) => <ResultCard key={i} r={r} onApprove={(reason) => changeReport(approveResult(report, i, reason))} onRevoke={() => changeReport(revokeApproval(report, i))} />)}</div>
             <div className="flex flex-wrap items-center gap-3">
               <ExportButtons report={report} />
               <Button size="sm" variant="outline" className="gap-1" onClick={downloadConfig}><FileDown className="h-3 w-3" /> Download trustllm.yaml for CI</Button>
@@ -267,7 +266,6 @@ export default function EvaluatePage() {
         {!report && !error && !loading && (
           <Card className="border-dashed border-border p-8 text-center text-sm text-muted-foreground">No results yet. Results appear here with a PASS or FAIL for each answer.</Card>
         )}
-      </main>
-    </div>
+    </AppShell>
   )
 }

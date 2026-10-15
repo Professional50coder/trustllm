@@ -17,6 +17,8 @@ export function toMarkdown(report: Report): string {
   const L: string[] = []
   L.push('# TrustLLM release-gate report', '')
   L.push(`Gate: **${report.summary.gate}**  (${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.errors} errors, ${report.summary.total} total)`, '')
+  const u = report.results.reduce((a, r) => ({ calls: a.calls + r.usage.calls, tin: a.tin + (r.usage.inputTokens ?? 0), tout: a.tout + (r.usage.outputTokens ?? 0), ms: Math.max(a.ms, r.latencyMs) }), { calls: 0, tin: 0, tout: 0, ms: 0 })
+  L.push(`Usage: ${u.calls} provider calls, ${u.tin + u.tout > 0 ? `${u.tin} input and ${u.tout} output tokens (as reported by the provider)` : 'token counts not reported'}, slowest result ${(u.ms / 1000).toFixed(1)} s.`, '')
   L.push(`Mode: **${report.mode === 'demo' ? 'DEMO (offline heuristics, no model called)' : 'LIVE (LLM judge)'}**  |  Judge: ${report.judge}  |  Samples per answer: ${report.samples}  |  Generated: ${report.generatedAt}`, '')
   L.push(`Recommendation: **${report.recommendation.headline}**. ${report.recommendation.detail}`, '')
   for (const n of report.notes) L.push(`> ${n}`)
@@ -28,6 +30,7 @@ export function toMarkdown(report: Report): string {
       L.push(`Error: ${r.error}`)
       continue
     }
+    if (r.approval) L.push(`**Approved by a reviewer on ${r.approval.at}.** Reason: ${r.approval.reason}`, '')
     L.push(r.explanation, '')
     if (r.fixes.length) L.push('Suggested fixes:', '', ...r.fixes.map((f) => `- ${f}`), '')
     L.push('Rules:', '')
@@ -44,9 +47,9 @@ export function toMarkdown(report: Report): string {
 
 export function toCsv(report: Report): string {
   const esc = (v: string | number | null) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const head = ['case', 'model', 'decision', 'overall', 'grounding', 'unsupported', 'consistency', 'toxicity', 'failed_rules', 'mode', 'judge', 'generated_at']
+  const head = ['case', 'model', 'decision', 'approved', 'overall', 'grounding', 'unsupported', 'consistency', 'toxicity', 'failed_rules', 'mode', 'judge', 'generated_at']
   const rows = report.results.map((r) => [
-    r.caseId, r.model, r.decision, r.overall, r.signals.grounding, r.signals.hallucinationRisk, r.signals.consistency, TOX_LABEL[r.signals.toxicity],
+    r.caseId, r.model, r.decision, r.approval ? 'yes' : '', r.overall, r.signals.grounding, r.signals.hallucinationRisk, r.signals.consistency, TOX_LABEL[r.signals.toxicity],
     r.checks.filter((c) => c.status === 'fail').map((c) => c.ruleId).join(';'), r.mode, r.judge, report.generatedAt,
   ])
   return [head, ...rows].map((r) => r.map(esc).join(',')).join('\n') + '\n'

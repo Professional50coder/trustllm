@@ -58,6 +58,19 @@ export interface CheckResult {
   reason: string
 }
 
+export interface Usage {
+  /** Provider calls made for this result (answers, samples and judge calls). 0 in demo mode. */
+  calls: number
+  /** Tokens as reported by the provider; null when the provider did not report them. */
+  inputTokens: number | null
+  outputTokens: number | null
+}
+
+export interface Approval {
+  reason: string
+  at: string
+}
+
 export interface CaseResult {
   caseId: string
   prompt: string
@@ -78,6 +91,9 @@ export interface CaseResult {
   fixes: string[]
   error?: string
   latencyMs: number
+  usage: Usage
+  /** Human override recorded after a FAIL. The original decision is kept. */
+  approval?: Approval
 }
 
 export interface Report {
@@ -88,7 +104,7 @@ export interface Report {
   samples: number
   guardrails: unknown[]
   results: CaseResult[]
-  summary: { total: number; passed: number; failed: number; errors: number; gate: 'PASS' | 'FAIL' }
+  summary: { total: number; passed: number; failed: number; errors: number; approved?: number; gate: 'PASS' | 'FAIL' }
   /** Overall recommendation for the run. */
   recommendation: { verdict: 'ship' | 'fix' | 'block'; headline: string; detail: string }
   notes: string[]

@@ -52,11 +52,19 @@ export function recommend(results: CaseResult[], mode: Report['mode']): Recommen
   const total = results.length
   const errors = results.filter((r) => r.decision === 'ERROR').length
   const pass = results.filter((r) => r.decision === 'PASS')
-  const fail = results.filter((r) => r.decision === 'FAIL')
+  const approved = results.filter((r) => r.decision === 'FAIL' && r.approval)
+  const fail = results.filter((r) => r.decision === 'FAIL' && !r.approval)
   const skipped = results.some((r) => r.checks.some((c) => c.status === 'skip'))
   const demoNote = mode === 'demo' ? ' This was a demo run; repeat it in live mode before relying on it.' : ''
   if (total === 0) return { verdict: 'block', headline: 'Nothing was evaluated', detail: 'Add at least one question and one model or answer.' }
   if (errors > 0) return { verdict: 'fix', headline: 'Fix the errors and run again', detail: `${errors} of ${total} evaluations could not run, so the gate cannot pass. See the error messages on those cards.` }
+  if (fail.length === 0 && approved.length > 0) {
+    return {
+      verdict: 'ship',
+      headline: 'Released with human approval',
+      detail: `${approved.length} answer${approved.length === 1 ? '' : 's'} failed the rules and ${approved.length === 1 ? 'was' : 'were'} approved by a reviewer. The failures and the reasons are kept in the report.${demoNote}`,
+    }
+  }
   if (fail.length === 0) {
     return {
       verdict: 'ship',

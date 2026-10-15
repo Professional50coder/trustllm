@@ -1,5 +1,5 @@
 name: TrustLLM release gate
-description: Run TrustLLM guardrail checks on LLM answers and fail the job when the gate fails.
+description: Run TrustLLM guardrail checks on LLM answers, fail the job when the gate fails, and optionally comment the report on the pull request.
 inputs:
   config:
     description: Path to trustllm.yaml, relative to the workspace.
@@ -8,6 +8,14 @@ inputs:
     description: Optional path to write the JSON report to.
     required: false
     default: ''
+  comment:
+    description: 'Set to "true" to post the Markdown report as a pull request comment. The workflow needs permissions: pull-requests: write.'
+    required: false
+    default: 'false'
+  github-token:
+    description: Token used to post the comment.
+    required: false
+    default: ${{ github.token }}
 runs:
   using: composite
   steps:
@@ -15,10 +23,21 @@ runs:
       env:
         TRUSTLLM_CONFIG: ${{ inputs.config }}
         TRUSTLLM_JSON: ${{ inputs.json }}
+        TRUSTLLM_COMMENT: ${{ inputs.comment }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
       run: |
-        args=(run "$TRUSTLLM_CONFIG")
+        set +e
+        report="$RUNNER_TEMP/trustllm-report.md"
+        args=(run "$TRUSTLLM_CONFIG" --md "$report")
         if [ -n "$TRUSTLLM_JSON" ]; then args+=(--json "$TRUSTLLM_JSON"); fi
         node "$GITHUB_ACTION_PATH/dist/cli.cjs" "${args[@]}"
+        code=$?
+        if [ "$TRUSTLLM_COMMENT" = "true" ] && [ -n "$PR_NUMBER" ] && [ -f "$report" ]; then
+          gh pr comment "$PR_NUMBER" --body-file "$report" || echo "::warning::Could not post the pull request comment"
+        fi
+        exit $code
 branding:
   icon: shield
   color: blue
