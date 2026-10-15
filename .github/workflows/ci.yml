@@ -41,7 +41,7 @@ jobs:
         run: docker build -t trustllm .
       - name: Run image and call the API
         run: |
-          docker run -d -p 3000:3000 --name t trustllm
+          docker run -d -p 3000:3000 --name trustllm-ci trustllm
           for i in $(seq 1 30); do curl -fs localhost:3000/api/health && break; sleep 1; done
           curl -fs -X POST localhost:3000/api/evaluate -H 'content-type: application/json' \
             -d '{"mode":"demo","cases":[{"prompt":"How long is the refund window?","context":"Refunds are allowed within 30 days of purchase by customers."}],"models":[{"provider":"demo","model":"demo-careful"}]}' | grep -q '"gate":"PASS"'
